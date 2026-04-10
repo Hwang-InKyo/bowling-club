@@ -1,0 +1,909 @@
+{
+  "members": [
+    {
+      "name": "장영민",
+      "baseScore": 200,
+      "baseScores": {
+        "2026-Q1": 200
+      },
+      "joinDate": "2026-01-01"
+    },
+    {
+      "name": "강희태",
+      "baseScore": 200,
+      "baseScores": {
+        "2026-Q1": 200
+      },
+      "joinDate": "2026-01-01"
+    },
+    {
+      "name": "최현수",
+      "baseScore": 200,
+      "baseScores": {
+        "2026-Q1": 200
+      },
+      "joinDate": "2026-01-01"
+    },
+    {
+      "name": "최진",
+      "baseScore": 200,
+      "baseScores": {
+        "2026-Q1": 200
+      },
+      "joinDate": "2026-01-01"
+    },
+    {
+      "name": "변상필",
+      "baseScore": 200,
+      "baseScores": {
+        "2026-Q1": 200
+      },
+      "joinDate": "2026-01-01"
+    },
+    {
+      "name": "이우석",
+      "baseScore": 200,
+      "baseScores": {
+        "2026-Q1": 200
+      },
+      "joinDate": "2026-01-01"
+    },
+    {
+      "name": "박시진",
+      "baseScore": 196,
+      "baseScores": {
+        "2026-Q1": 196
+      },
+      "joinDate": "2026-01-01"
+    },
+    {
+      "name": "고경훈",
+      "baseScore": 195,
+      "baseScores": {
+        "2026-Q1": 195
+      },
+      "joinDate": "2026-01-01"
+    },
+    {
+      "name": "이정석",
+      "baseScore": 196,
+      "baseScores": {
+        "2026-Q1": 196
+      },
+      "joinDate": "2026-01-01"
+    },
+    {
+      "name": "이대용",
+      "baseScore": 197,
+      "baseScores": {
+        "2026-Q1": 197
+      },
+      "joinDate": "2026-01-01"
+    },
+    {
+      "name": "김남주",
+      "baseScore": 195,
+      "baseScores": {
+        "2026-Q1": 195
+      },
+      "joinDate": "2026-01-01"
+    },
+    {
+      "name": "강완규",
+      "baseScore": 194,
+      "baseScores": {
+        "2026-Q1": 194
+      },
+      "joinDate": "2026-01-01"
+    },
+    {
+      "name": "임연진",
+      "baseScore": 194,
+      "baseScores": {
+        "2026-Q1": 194
+      },
+      "joinDate": "2026-01-01"
+    },
+    {
+      "name": "이범수",
+      "baseScore": 193,
+      "baseScores": {
+        "2026-Q1": 193
+      },
+      "joinDate": "2026-01-01"
+    },
+    {
+      "name": "나경주",
+      "baseScore": 192,
+      "baseScores": {
+        "2026-Q1": 192
+      },
+      "joinDate": "2026-01-01"
+    },
+    {
+      "name": "정영우",
+      "baseScore": 184,
+      "baseScores": {
+        "2026-Q1": 184
+      },
+      "joinDate": "2026-01-01"
+    },
+    {
+      "name": "박성현",
+      "baseScore": 190,
+      "baseScores": {
+        "2026-Q1": 190
+      },
+      "joinDate": "2026-01-01"
+    },
+    {
+      "name": "천성일",
+      "baseScore": 191,
+      "baseScores": {
+        "2026-Q1": 191
+      },
+      "joinDate": "2026-01-01"
+    },
+    {
+      "name": "이상현",
+      "baseScore": 188,
+      "baseScores": {
+        "2026-Q1": 188
+      },
+      "joinDate": "2026-01-01"
+    },
+    {
+      "name": "황인교",
+      "baseScore": 184,
+      "baseScores": {
+        "2026-Q1": 184
+      },
+      "joinDate": "2026-01-01"
+    },
+    {
+      "name": "김규희",
+      "baseScore": 182,
+      "baseScores": {
+        "2026-Q1": 182
+      },
+      "joinDate": "2026-01-01"
+    },
+    {
+      "name": "엄정도",
+      "baseScore": 184,
+      "baseScores": {
+        "2026-Q1": 184
+      },
+      "joinDate": "2026-01-01"
+    },
+    {
+      "name": "지옥명",
+      "baseScore": 183,
+      "baseScores": {
+        "2026-Q1": 183
+      },
+      "joinDate": "2026-01-01"
+    },
+    {
+      "name": "김미란",
+      "baseScore": 182,
+      "baseScores": {
+        "2026-Q1": 182
+      },
+      "joinDate": "2026-01-01"
+    },
+    {
+      "name": "송정현",
+      "baseScore": 187,
+      "baseScores": {
+        "2026-Q1": 187
+      },
+      "joinDate": "2026-01-01"
+    },
+    {
+      "name": "김태호",
+      "baseScore": 166,
+      "baseScores": {
+        "2026-Q1": 166
+      },
+      "joinDate": "2026-01-01"
+    },
+    {
+      "name": "이승미",
+      "baseScore": 165,
+      "baseScores": {
+        "2026-Q1": 165
+      },
+      "joinDate": "2026-01-01"
+    },
+    {
+      "name": "손은주",
+      "baseScore": 151,
+      "baseScores": {
+        "2026-Q1": 151
+      },
+      "joinDate": "2026-01-01"
+    },
+    {
+      "name": "진명옥",
+      "baseScore": 171,
+      "baseScores": {
+        "2026-Q1": 171
+      },
+      "joinDate": "2026-01-01"
+    },
+    {
+      "name": "김선미",
+      "baseScore": 161,
+      "baseScores": {
+        "2026-Q1": 161
+      },
+      "joinDate": "2026-01-01"
+    },
+    {
+      "name": "김종훈",
+      "baseScore": 176,
+      "baseScores": {
+        "2026-Q1": 176
+      },
+      "joinDate": "2026-01-01"
+    },
+    {
+      "name": "임승기",
+      "baseScore": 200,
+      "baseScores": {
+        "2026-Q1": 200
+      },
+      "joinDate": "2026-01-01"
+    },
+    {
+      "name": "김태환",
+      "baseScore": 190,
+      "baseScores": {
+        "2026-Q1": 190
+      },
+      "joinDate": "2026-01-01"
+    }
+  ],
+  "sessions": [
+    {
+      "round": 2,
+      "date": "2026-01-29",
+      "numGames": 4,
+      "teamSize": 5,
+      "teams": [
+        {
+          "name": "1팀",
+          "members": [
+            {
+              "name": "장영민",
+              "baseScore": 200
+            },
+            {
+              "name": "천성일",
+              "baseScore": 191
+            },
+            {
+              "name": "나경주",
+              "baseScore": 192
+            },
+            {
+              "name": "지옥명",
+              "baseScore": 183
+            }
+          ],
+          "totalBase": 766
+        },
+        {
+          "name": "2팀",
+          "members": [
+            {
+              "name": "최현수",
+              "baseScore": 200
+            },
+            {
+              "name": "이대용",
+              "baseScore": 197
+            },
+            {
+              "name": "정영우",
+              "baseScore": 184
+            },
+            {
+              "name": "엄정도",
+              "baseScore": 184
+            },
+            {
+              "name": "이승미",
+              "baseScore": 165
+            }
+          ],
+          "totalBase": 930
+        },
+        {
+          "name": "3팀",
+          "members": [
+            {
+              "name": "변상필",
+              "baseScore": 200
+            },
+            {
+              "name": "강완규",
+              "baseScore": 194
+            },
+            {
+              "name": "김태환",
+              "baseScore": 190
+            },
+            {
+              "name": "김미란",
+              "baseScore": 182
+            },
+            {
+              "name": "황인교",
+              "baseScore": 184
+            }
+          ],
+          "totalBase": 950
+        },
+        {
+          "name": "4팀",
+          "members": [
+            {
+              "name": "이우석",
+              "baseScore": 200
+            },
+            {
+              "name": "임연진",
+              "baseScore": 194
+            },
+            {
+              "name": "임승기",
+              "baseScore": 200
+            },
+            {
+              "name": "김선미",
+              "baseScore": 161
+            },
+            {
+              "name": "이정석",
+              "baseScore": 196
+            }
+          ],
+          "totalBase": 951
+        }
+      ],
+      "scores": [
+        {
+          "name": "장영민",
+          "baseScore": 200,
+          "team": "1팀",
+          "games": [
+            184,
+            173,
+            205,
+            201
+          ]
+        },
+        {
+          "name": "천성일",
+          "baseScore": 191,
+          "team": "1팀",
+          "games": [
+            189,
+            178,
+            174,
+            230
+          ]
+        },
+        {
+          "name": "나경주",
+          "baseScore": 192,
+          "team": "1팀",
+          "games": [
+            173,
+            216,
+            166,
+            165
+          ]
+        },
+        {
+          "name": "지옥명",
+          "baseScore": 183,
+          "team": "1팀",
+          "games": [
+            164,
+            180,
+            182,
+            217
+          ]
+        },
+        {
+          "name": "최현수",
+          "baseScore": 200,
+          "team": "2팀",
+          "games": [
+            173,
+            195,
+            239,
+            223
+          ]
+        },
+        {
+          "name": "이대용",
+          "baseScore": 197,
+          "team": "2팀",
+          "games": [
+            195,
+            224,
+            202,
+            167
+          ]
+        },
+        {
+          "name": "정영우",
+          "baseScore": 184,
+          "team": "2팀",
+          "games": [
+            174,
+            208,
+            197,
+            189
+          ]
+        },
+        {
+          "name": "엄정도",
+          "baseScore": 184,
+          "team": "2팀",
+          "games": [
+            173,
+            181,
+            197,
+            167
+          ]
+        },
+        {
+          "name": "이승미",
+          "baseScore": 165,
+          "team": "2팀",
+          "games": [
+            146,
+            183,
+            147,
+            180
+          ]
+        },
+        {
+          "name": "변상필",
+          "baseScore": 200,
+          "team": "3팀",
+          "games": [
+            214,
+            203,
+            175,
+            228
+          ]
+        },
+        {
+          "name": "강완규",
+          "baseScore": 194,
+          "team": "3팀",
+          "games": [
+            232,
+            179,
+            212,
+            174
+          ]
+        },
+        {
+          "name": "김태환",
+          "baseScore": 190,
+          "team": "3팀",
+          "games": [
+            230,
+            197,
+            206,
+            184
+          ]
+        },
+        {
+          "name": "김미란",
+          "baseScore": 182,
+          "team": "3팀",
+          "games": [
+            160,
+            157,
+            181,
+            189
+          ]
+        },
+        {
+          "name": "황인교",
+          "baseScore": 184,
+          "team": "3팀",
+          "games": [
+            164,
+            183,
+            166,
+            202
+          ]
+        },
+        {
+          "name": "이우석",
+          "baseScore": 200,
+          "team": "4팀",
+          "games": [
+            205,
+            228,
+            216,
+            190
+          ]
+        },
+        {
+          "name": "임연진",
+          "baseScore": 194,
+          "team": "4팀",
+          "games": [
+            211,
+            209,
+            190,
+            198
+          ]
+        },
+        {
+          "name": "임승기",
+          "baseScore": 200,
+          "team": "4팀",
+          "games": [
+            179,
+            191,
+            238,
+            201
+          ]
+        },
+        {
+          "name": "김선미",
+          "baseScore": 161,
+          "team": "4팀",
+          "games": [
+            151,
+            190,
+            179,
+            165
+          ]
+        },
+        {
+          "name": "이정석",
+          "baseScore": 196,
+          "team": "4팀",
+          "games": [
+            194,
+            207,
+            173,
+            195
+          ]
+        }
+      ]
+    },
+    {
+      "round": 1,
+      "date": "2026-01-22",
+      "numGames": 4,
+      "teamSize": 5,
+      "teams": [
+        {
+          "name": "1팀",
+          "members": [
+            {
+              "name": "장영민",
+              "baseScore": 200
+            },
+            {
+              "name": "천성일",
+              "baseScore": 191
+            },
+            {
+              "name": "나경주",
+              "baseScore": 192
+            },
+            {
+              "name": "지옥명",
+              "baseScore": 183
+            }
+          ],
+          "totalBase": 766
+        },
+        {
+          "name": "2팀",
+          "members": [
+            {
+              "name": "최현수",
+              "baseScore": 200
+            },
+            {
+              "name": "이대용",
+              "baseScore": 197
+            },
+            {
+              "name": "정영우",
+              "baseScore": 184
+            },
+            {
+              "name": "엄정도",
+              "baseScore": 184
+            },
+            {
+              "name": "이승미",
+              "baseScore": 165
+            }
+          ],
+          "totalBase": 930
+        },
+        {
+          "name": "3팀",
+          "members": [
+            {
+              "name": "변상필",
+              "baseScore": 200
+            },
+            {
+              "name": "강완규",
+              "baseScore": 194
+            },
+            {
+              "name": "김태환",
+              "baseScore": 190
+            },
+            {
+              "name": "김미란",
+              "baseScore": 182
+            },
+            {
+              "name": "황인교",
+              "baseScore": 184
+            }
+          ],
+          "totalBase": 950
+        },
+        {
+          "name": "4팀",
+          "members": [
+            {
+              "name": "이우석",
+              "baseScore": 200
+            },
+            {
+              "name": "임연진",
+              "baseScore": 194
+            },
+            {
+              "name": "임승기",
+              "baseScore": 200
+            },
+            {
+              "name": "김선미",
+              "baseScore": 161
+            },
+            {
+              "name": "이정석",
+              "baseScore": 196
+            }
+          ],
+          "totalBase": 951
+        }
+      ],
+      "scores": [
+        {
+          "name": "장영민",
+          "baseScore": 200,
+          "team": "1팀",
+          "games": [
+            204,
+            207,
+            235,
+            236
+          ]
+        },
+        {
+          "name": "천성일",
+          "baseScore": 191,
+          "team": "1팀",
+          "games": [
+            219,
+            204,
+            192,
+            165
+          ]
+        },
+        {
+          "name": "나경주",
+          "baseScore": 192,
+          "team": "1팀",
+          "games": [
+            201,
+            201,
+            211,
+            160
+          ]
+        },
+        {
+          "name": "지옥명",
+          "baseScore": 183,
+          "team": "1팀",
+          "games": [
+            211,
+            220,
+            171,
+            133
+          ]
+        },
+        {
+          "name": "최현수",
+          "baseScore": 200,
+          "team": "2팀",
+          "games": [
+            266,
+            197,
+            222,
+            273
+          ]
+        },
+        {
+          "name": "이대용",
+          "baseScore": 197,
+          "team": "2팀",
+          "games": [
+            184,
+            211,
+            212,
+            180
+          ]
+        },
+        {
+          "name": "정영우",
+          "baseScore": 184,
+          "team": "2팀",
+          "games": [
+            254,
+            218,
+            166,
+            200
+          ]
+        },
+        {
+          "name": "엄정도",
+          "baseScore": 184,
+          "team": "2팀",
+          "games": [
+            170,
+            157,
+            186,
+            195
+          ]
+        },
+        {
+          "name": "이승미",
+          "baseScore": 165,
+          "team": "2팀",
+          "games": [
+            127,
+            137,
+            192,
+            154
+          ]
+        },
+        {
+          "name": "변상필",
+          "baseScore": 200,
+          "team": "3팀",
+          "games": [
+            232,
+            214,
+            230,
+            217
+          ]
+        },
+        {
+          "name": "강완규",
+          "baseScore": 194,
+          "team": "3팀",
+          "games": [
+            178,
+            214,
+            176,
+            198
+          ]
+        },
+        {
+          "name": "김태환",
+          "baseScore": 190,
+          "team": "3팀",
+          "games": [
+            227,
+            240,
+            183,
+            200
+          ]
+        },
+        {
+          "name": "김미란",
+          "baseScore": 182,
+          "team": "3팀",
+          "games": [
+            189,
+            211,
+            170,
+            200
+          ]
+        },
+        {
+          "name": "황인교",
+          "baseScore": 184,
+          "team": "3팀",
+          "games": [
+            179,
+            218,
+            193,
+            206
+          ]
+        },
+        {
+          "name": "이우석",
+          "baseScore": 200,
+          "team": "4팀",
+          "games": [
+            187,
+            201,
+            188,
+            225
+          ]
+        },
+        {
+          "name": "임연진",
+          "baseScore": 194,
+          "team": "4팀",
+          "games": [
+            191,
+            246,
+            190,
+            223
+          ]
+        },
+        {
+          "name": "임승기",
+          "baseScore": 200,
+          "team": "4팀",
+          "games": [
+            234,
+            245,
+            214,
+            189
+          ]
+        },
+        {
+          "name": "김선미",
+          "baseScore": 161,
+          "team": "4팀",
+          "games": [
+            158,
+            216,
+            128,
+            140
+          ]
+        },
+        {
+          "name": "이정석",
+          "baseScore": 196,
+          "team": "4팀",
+          "games": [
+            202,
+            184,
+            225,
+            235
+          ]
+        }
+      ]
+    }
+  ],
+  "exportDate": "2026-04-10"
+}

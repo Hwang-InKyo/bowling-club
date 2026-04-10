@@ -5,15 +5,119 @@
 
 let currentTeams = [];
 let currentSession = null; // { round, date, numGames, teamSize, teams, scores }
+let guestPlayers = []; // 게스트 목록 [{name, baseScore}]
+let appRole = null; // 'admin' | 'viewer'
+
+const PIN_ADMIN = '0410';
+const PIN_VIEWER = '0409';
+const SESSION_DURATION = 2 * 60 * 60 * 1000; // 2시간
 
 document.addEventListener('DOMContentLoaded', () => {
-  initTabs();
-  initSettings();
-  initSession();
-  initMemberForm();
-  initFilters();
-  refreshAll();
+  initLockScreen();
 });
+
+function checkSavedSession() {
+  try {
+    const saved = sessionStorage.getItem('bowling_session_auth');
+    if (!saved) return null;
+    const data = JSON.parse(saved);
+    if (Date.now() - data.ts < SESSION_DURATION) return data.role;
+    sessionStorage.removeItem('bowling_session_auth');
+  } catch (e) { /* ignore */ }
+  return null;
+}
+
+function saveSessionAuth(role) {
+  sessionStorage.setItem('bowling_session_auth', JSON.stringify({ role, ts: Date.now() }));
+}
+
+function initLockScreen() {
+  // 저장된 세션 확인 (2시간 이내)
+  const savedRole = checkSavedSession();
+  if (savedRole) {
+    appRole = savedRole;
+    document.getElementById('lock-screen').style.display = 'none';
+    document.getElementById('app-wrap').style.display = '';
+    applyRole();
+    initTabs();
+    initSettings();
+    initSession();
+    initMemberForm();
+    initFilters();
+    refreshAll();
+    return;
+  }
+
+  const pinInput = document.getElementById('pin-input');
+  const btnEnter = document.getElementById('btn-pin-enter');
+  const pinError = document.getElementById('pin-error');
+
+  function tryPin() {
+    const pin = pinInput.value.trim();
+    if (pin === PIN_ADMIN) {
+      appRole = 'admin';
+    } else if (pin === PIN_VIEWER) {
+      appRole = 'viewer';
+    } else {
+      pinError.style.display = 'block';
+      pinInput.value = '';
+      pinInput.focus();
+      return;
+    }
+    saveSessionAuth(appRole);
+    document.getElementById('lock-screen').style.display = 'none';
+    document.getElementById('app-wrap').style.display = '';
+    applyRole();
+    initTabs();
+    initSettings();
+    initSession();
+    initMemberForm();
+    initFilters();
+    refreshAll();
+  }
+
+  btnEnter.addEventListener('click', tryPin);
+  pinInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') tryPin();
+    pinError.style.display = 'none';
+  });
+  pinInput.focus();
+
+  document.getElementById('btn-logout').addEventListener('click', () => {
+    sessionStorage.removeItem('bowling_session_auth');
+    appRole = null;
+    document.getElementById('lock-screen').style.display = '';
+    document.getElementById('app-wrap').style.display = 'none';
+    pinInput.value = '';
+    pinInput.focus();
+  });
+}
+
+function applyRole() {
+  const badge = document.getElementById('role-badge');
+  if (appRole === 'admin') {
+    badge.textContent = '관리자';
+    badge.className = 'role-badge admin';
+  } else {
+    badge.textContent = '조회모드';
+    badge.className = 'role-badge viewer';
+  }
+
+  // 조회 모드: 점수입력/회원관리 탭 숨기기, 설정 숨기기
+  const sessionTab = document.querySelector('[data-tab="session"]');
+  const membersTab = document.querySelector('[data-tab="members"]');
+  const settingsToggle = document.getElementById('settings-toggle');
+
+  if (appRole === 'viewer') {
+    if (sessionTab) sessionTab.style.display = 'none';
+    if (membersTab) membersTab.style.display = 'none';
+    if (settingsToggle) settingsToggle.style.display = 'none';
+  } else {
+    if (sessionTab) sessionTab.style.display = '';
+    if (membersTab) membersTab.style.display = '';
+    if (settingsToggle) settingsToggle.style.display = '';
+  }
+}
 
 // ========================
 // 탭
@@ -67,14 +171,14 @@ async function refreshHome() {
 
   recentEl.innerHTML = `
     <p style="margin-bottom:8px;color:var(--text-light);font-size:0.85rem">
-      📅 ${latest.round}회 (${formatDate(latest.date)}) · ${latest.scores.length}명 · ${latest.numGames}게임
+      📅 ${sessionLabel(latest, sessions)} (${formatDate(latest.date)}) · ${latest.scores.length}명 · ${latest.numGames}게임
     </p>
     <div class="table-scroll">
     <table class="data-table">
       <thead><tr>
         <th>이름</th>
         ${gameHeaders(latest.numGames)}
-        <th>합계</th><th>에버</th><th>기본</th><th>오차</th>
+        <th>총핀</th><th>단게임</th><th>에버</th><th>기본</th><th>오차</th>
       </tr></thead>
       <tbody>
         ${latest.scores.map(s => {
@@ -83,10 +187,12 @@ async function refreshHome() {
           const base = s.baseScore || 0;
           const diff = base > 0 ? (total - base * latest.numGames) : null;
           const diffAvg = base > 0 ? (parseFloat(avg) - base).toFixed(1) : null;
+          const highGame = Math.max(...s.games.filter((g, i) => i < latest.numGames && g > 0), 0);
           return `<tr>
             <td><strong>${esc(s.name)}</strong></td>
             ${s.games.map((g, i) => i < latest.numGames ? `<td>${g || 0}</td>` : '').join('')}
             <td><strong>${total}</strong></td>
+            <td><strong>${highGame}</strong></td>
             <td><strong>${avg}</strong></td>
             <td>${base || '-'}</td>
             <td>${diffAvg !== null ? diffSpan(parseFloat(diffAvg)) : '-'}</td>
@@ -139,6 +245,9 @@ function initSession() {
   document.getElementById('session-date').value = todayStr();
   autoSelectWeekType();
 
+  // 모임 유형 변경 시 자동 회차 갱신
+  document.getElementById('session-games').addEventListener('change', autoFillRound);
+
   document.getElementById('btn-sel-all').addEventListener('click', () => {
     document.querySelectorAll('#session-member-checks input[type="checkbox"]').forEach(cb => cb.checked = true);
   });
@@ -153,37 +262,95 @@ function initSession() {
     show('session-step2'); hide('session-step3');
   });
   document.getElementById('btn-save-session').addEventListener('click', saveCurrentSession);
+
+  // 게스트 추가
+  document.getElementById('btn-add-guest').addEventListener('click', addGuest);
+
+  // 참가자 수 업데이트
+  document.getElementById('session-member-checks').addEventListener('change', updateParticipantSummary);
 }
 
 async function refreshSessionTab() {
   const members = await API.getMembers();
+  const curQKey = getCurrentQuarterKey();
   const checks = document.getElementById('session-member-checks');
-  checks.innerHTML = members.map(m => `
+  checks.innerHTML = members.map(m => {
+    const base = getMemberBaseForQuarter(m, curQKey);
+    return `
     <label class="checkbox-item">
       <input type="checkbox" value="${esc(m.name)}" checked>
-      <span>${esc(m.name)} <small>(${m.baseScore || 0})</small></span>
+      <span>${esc(m.name)} <small>(${base})</small></span>
     </label>
-  `).join('');
+  `}).join('');
 
+  guestPlayers = [];
+  renderGuestList();
+  updateParticipantSummary();
   await refreshSessionList();
+}
+
+function addGuest() {
+  const nameEl = document.getElementById('guest-name');
+  const baseEl = document.getElementById('guest-base');
+  const name = nameEl.value.trim();
+  if (!name) { toast('게스트 이름을 입력하세요', 'error'); return; }
+  if (guestPlayers.find(g => g.name === name)) { toast('이미 추가된 게스트입니다', 'error'); return; }
+  const base = parseInt(baseEl.value) || 0;
+  guestPlayers.push({ name, baseScore: base, isGuest: true });
+  nameEl.value = '';
+  baseEl.value = '';
+  renderGuestList();
+  updateParticipantSummary();
+  toast(`게스트 ${name} 추가`, 'success');
+}
+
+function removeGuest(name) {
+  guestPlayers = guestPlayers.filter(g => g.name !== name);
+  renderGuestList();
+  updateParticipantSummary();
+}
+window.removeGuest = removeGuest;
+
+function renderGuestList() {
+  const el = document.getElementById('guest-list');
+  if (guestPlayers.length === 0) { el.innerHTML = ''; return; }
+  el.innerHTML = guestPlayers.map(g => `
+    <span class="guest-tag">
+      🏷️ ${esc(g.name)} (${g.baseScore})
+      <button onclick="removeGuest('${esc(g.name)}')" style="border:none;background:none;cursor:pointer;color:var(--danger);font-weight:700;">✕</button>
+    </span>
+  `).join('');
+}
+
+function updateParticipantSummary() {
+  const checked = document.querySelectorAll('#session-member-checks input:checked');
+  const total = checked.length + guestPlayers.length;
+  const el = document.getElementById('participant-summary');
+  const teamSize = parseInt(document.getElementById('session-team-size').value);
+  const numTeams = teamSize > 0 ? Math.ceil(total / teamSize) : 0;
+  el.textContent = `참가자 ${total}명 (회원 ${checked.length} + 게스트 ${guestPlayers.length}) → ${numTeams}팀 예상`;
 }
 
 function stepMakeTeams() {
   const teamSize = parseInt(document.getElementById('session-team-size').value);
   const checked = document.querySelectorAll('#session-member-checks input:checked');
-  const names = Array.from(checked).map(cb => cb.value);
+  const memberNames = Array.from(checked).map(cb => cb.value);
+  const totalCount = memberNames.length + guestPlayers.length;
 
-  if (names.length < teamSize) {
-    toast(`최소 ${teamSize}명 이상 선택`, 'error');
+  if (totalCount < teamSize) {
+    toast(`최소 ${teamSize}명 이상 필요 (현재 ${totalCount}명)`, 'error');
     return;
   }
 
   API.getMembers().then(members => {
-    const selected = names.map(n => {
+    const curQKey = getCurrentQuarterKey();
+    const selected = memberNames.map(n => {
       const m = members.find(x => x.name === n);
-      return { name: n, baseScore: (m && m.baseScore) || 0 };
+      return { name: n, baseScore: m ? getMemberBaseForQuarter(m, curQKey) : 0 };
     });
-    currentTeams = balanceTeams(selected, teamSize);
+    // 게스트 합치기
+    const allPlayers = [...selected, ...guestPlayers.map(g => ({ name: g.name, baseScore: g.baseScore }))];
+    currentTeams = balanceTeams(allPlayers, teamSize);
     renderTeamPreview();
     show('session-step2');
   });
@@ -191,21 +358,58 @@ function stepMakeTeams() {
 
 function renderTeamPreview() {
   const el = document.getElementById('team-result');
-  el.innerHTML = `<div class="team-grid">${currentTeams.map(t => `
+  el.innerHTML = `<div class="team-grid">${currentTeams.map((t, ti) => `
     <div class="team-card">
       <div class="team-header">
         <strong>${t.name}</strong>
         <span class="team-avg">에버합 ${t.totalBase}</span>
       </div>
       <ul class="team-members">
-        ${t.members.map(m => `<li><span>${esc(m.name)}</span><span class="base-tag">${m.baseScore}</span></li>`).join('')}
+        ${t.members.map(m => `<li>
+          <span>${esc(m.name)}</span>
+          <span class="base-tag">${m.baseScore}</span>
+          <select class="team-move-select" data-player="${esc(m.name)}" data-from="${ti}" onchange="movePlayer(this)">
+            <option value="">이동</option>
+            ${currentTeams.filter((_, i) => i !== ti).map((ot, oi) => {
+              const realIdx = currentTeams.indexOf(ot);
+              return `<option value="${realIdx}">${ot.name}</option>`;
+            }).join('')}
+          </select>
+        </li>`).join('')}
       </ul>
     </div>
   `).join('')}</div>`;
 }
 
+function movePlayer(selectEl) {
+  const playerName = selectEl.dataset.player;
+  const fromIdx = parseInt(selectEl.dataset.from);
+  const toIdx = parseInt(selectEl.value);
+  if (isNaN(toIdx)) return;
+
+  const fromTeam = currentTeams[fromIdx];
+  const toTeam = currentTeams[toIdx];
+  const playerIdx = fromTeam.members.findIndex(m => m.name === playerName);
+  if (playerIdx < 0) return;
+
+  const player = fromTeam.members.splice(playerIdx, 1)[0];
+  toTeam.members.push(player);
+
+  // 에버합 재계산
+  fromTeam.totalBase = fromTeam.members.reduce((s, m) => s + (m.baseScore || 0), 0);
+  toTeam.totalBase = toTeam.members.reduce((s, m) => s + (m.baseScore || 0), 0);
+
+  // 빈 팀 제거
+  currentTeams = currentTeams.filter(t => t.members.length > 0);
+
+  renderTeamPreview();
+  toast(`${playerName} → ${toTeam.name}`, 'success');
+}
+window.movePlayer = movePlayer;
+
 function stepStartScoring() {
   const numGames = parseInt(document.getElementById('session-games').value);
+  const scoreType = document.getElementById('session-score-type').value; // 'average' or 'totalpin'
   const round = parseInt(document.getElementById('session-round').value) || 0;
   const date = document.getElementById('session-date').value;
 
@@ -217,10 +421,10 @@ function stepStartScoring() {
     });
   });
 
-  currentSession = { round, date, numGames, teamSize: currentTeams[0]?.members.length || 5, teams: currentTeams, scores: allPlayers };
+  currentSession = { round, date, numGames, scoreType, teamSize: currentTeams[0]?.members.length || 5, teams: currentTeams, scores: allPlayers };
 
-  document.getElementById('scoring-title').textContent = `${round}회 번개 점수`;
-  document.getElementById('scoring-sub').textContent = `${formatDate(date)} · ${numGames}게임 · ${allPlayers.length}명`;
+  document.getElementById('scoring-title').textContent = `${getMeetingType({numGames})} ${round}회 점수`;
+  document.getElementById('scoring-sub').textContent = `${formatDate(date)} · ${numGames === 3 ? '정모' : '벙개'} · ${allPlayers.length}명 · ${scoreType === 'average' ? '에버기준' : '총핀기준'}`;
 
   buildScoreTable(allPlayers, numGames);
   buildTeamScoreTables(numGames);
@@ -262,9 +466,17 @@ function buildScoreTable(players, numGames) {
   html += '</tbody>';
   table.innerHTML = html;
 
-  // 입력 이벤트
+  // 입력 이벤트 + 자동저장
+  let autoSaveTimer = null;
   table.querySelectorAll('.score-input').forEach(input => {
-    input.addEventListener('input', () => recalcRow(parseInt(input.dataset.p), numGames));
+    input.addEventListener('input', () => {
+      recalcRow(parseInt(input.dataset.p), numGames);
+      // 디바운스 자동저장 (1.5초 입력 멈추면 저장)
+      clearTimeout(autoSaveTimer);
+      autoSaveTimer = setTimeout(() => {
+        saveCurrentSession(true);
+      }, 1500);
+    });
   });
 }
 
@@ -311,18 +523,20 @@ function recalcRow(pIdx, numGames) {
 
 function buildTeamScoreTables(numGames) {
   const container = document.getElementById('team-score-tables');
+  const scoreType = currentSession.scoreType || 'average';
+  const isTotalPin = scoreType === 'totalpin';
   let html = '';
 
   currentTeams.forEach((team, ti) => {
     const teamPlayers = currentSession.scores.filter(p => p.team === team.name);
     html += `<div class="team-score-block">
-      <h4>${team.name} (에버합: ${team.totalBase})</h4>
+      <h4>${team.name} ${isTotalPin ? '' : '(에버합: ' + team.totalBase + ')'}</h4>
       <div class="table-scroll">
       <table class="score-table" id="team-table-${ti}">
         <thead><tr>
           <th>이름</th>
           ${Array.from({length: numGames}, (_, i) => `<th>${i + 1}G</th>`).join('')}
-          <th>합계</th>
+          <th>${isTotalPin ? '총핀' : '합계'}</th>
         </tr></thead>
         <tbody>
           ${teamPlayers.map(p => {
@@ -348,6 +562,9 @@ function buildTeamScoreTables(numGames) {
 }
 
 function recalcTeamScores(numGames) {
+  const scoreType = currentSession?.scoreType || 'average';
+  const isTotalPin = scoreType === 'totalpin';
+
   currentTeams.forEach((team, ti) => {
     const teamPlayers = currentSession.scores.filter(p => p.team === team.name);
     const gameSums = Array(numGames).fill(0);
@@ -360,26 +577,27 @@ function recalcTeamScores(numGames) {
 
       for (let g = 0; g < numGames; g++) {
         const val = parseInt(document.getElementById(`${rid}_g${g}`)?.value) || 0;
-        const diff = val - base;
+        const cellVal = isTotalPin ? val : (val - base);
 
         const el = document.getElementById(`td${ti}_p${pIdx}_d${g}`);
         if (el) {
-          el.textContent = diff;
-          el.className = diff >= 0 ? 'diff-positive' : 'diff-negative';
+          el.textContent = cellVal;
+          if (!isTotalPin) el.className = cellVal >= 0 ? 'diff-positive' : 'diff-negative';
+          else el.className = '';
         }
-        gameSums[g] += diff;
+        gameSums[g] += cellVal;
       }
 
-      const playerDiffTotal = gameSums.reduce ? undefined : 0; // computed per player
       let pdt = 0;
       for (let g = 0; g < numGames; g++) {
         const val = parseInt(document.getElementById(`${rid}_g${g}`)?.value) || 0;
-        pdt += val - base;
+        pdt += isTotalPin ? val : (val - base);
       }
       const elPdt = document.getElementById(`td${ti}_p${pIdx}_dt`);
       if (elPdt) {
         elPdt.innerHTML = `<strong>${pdt}</strong>`;
-        elPdt.className = pdt >= 0 ? 'diff-positive' : 'diff-negative';
+        if (!isTotalPin) elPdt.className = pdt >= 0 ? 'diff-positive' : 'diff-negative';
+        else elPdt.className = '';
       }
     });
 
@@ -391,7 +609,7 @@ function recalcTeamScores(numGames) {
       const base = p.baseScore || 0;
       for (let g = 0; g < numGames; g++) {
         const val = parseInt(document.getElementById(`p${pIdx}_g${g}`)?.value) || 0;
-        gSums[g] += val - base;
+        gSums[g] += isTotalPin ? val : (val - base);
       }
     });
 
@@ -400,20 +618,22 @@ function recalcTeamScores(numGames) {
       const el = document.getElementById(`td${ti}_sum_g${g}`);
       if (el) {
         el.textContent = gSums[g];
-        el.className = gSums[g] >= 0 ? 'diff-positive' : 'diff-negative';
+        if (!isTotalPin) el.className = gSums[g] >= 0 ? 'diff-positive' : 'diff-negative';
+        else el.className = '';
       }
     }
 
     const elTotal = document.getElementById(`td${ti}_sum_total`);
     if (elTotal) {
       elTotal.innerHTML = `<strong>${teamTotal}</strong>`;
-      elTotal.className = teamTotal >= 0 ? 'diff-positive' : 'diff-negative';
+      if (!isTotalPin) elTotal.className = teamTotal >= 0 ? 'diff-positive' : 'diff-negative';
+      else elTotal.className = '';
     }
   });
 }
 
-async function saveCurrentSession() {
-  if (!currentSession) { toast('세션이 없습니다', 'error'); return; }
+async function saveCurrentSession(isAuto) {
+  if (!currentSession) { if (!isAuto) toast('세션이 없습니다', 'error'); return; }
 
   const numGames = currentSession.numGames;
   // 점수 수집
@@ -429,6 +649,7 @@ async function saveCurrentSession() {
     round: currentSession.round,
     date: currentSession.date,
     numGames,
+    scoreType: currentSession.scoreType || 'average',
     teamSize: currentSession.teamSize,
     teams: currentTeams.map(t => ({ name: t.name, members: t.members.map(m => ({ name: m.name, baseScore: m.baseScore })), totalBase: t.totalBase })),
     scores
@@ -436,7 +657,11 @@ async function saveCurrentSession() {
 
   try {
     await API.saveSession(session);
-    toast(`${session.round}회 번개 저장 완료`, 'success');
+    if (!isAuto) {
+      toast(`${getMeetingType(session)} ${session.round}회 저장 완료`, 'success');
+    } else {
+      toast('자동 저장됨', 'info');
+    }
     refreshSessionList();
     refreshHome();
   } catch (e) {
@@ -456,8 +681,8 @@ async function refreshSessionList() {
   el.innerHTML = sessions.map(s => `
     <div class="session-item" onclick="loadSession(${s.round})">
       <div class="session-info">
-        <div class="session-round">${s.round}회 번개</div>
-        <div class="session-meta">${formatDate(s.date)} · ${s.scores.length}명 · ${s.numGames}게임</div>
+        <div class="session-round">${sessionLabel(s, sessions)}</div>
+        <div class="session-meta">${formatDate(s.date)} · ${s.scores.length}명 · ${getMeetingType(s)}</div>
       </div>
       <button class="btn-icon delete" onclick="event.stopPropagation();deleteSession(${s.round})">삭제</button>
     </div>
@@ -473,6 +698,7 @@ async function loadSession(round) {
   document.getElementById('session-round').value = session.round;
   document.getElementById('session-date').value = session.date;
   document.getElementById('session-games').value = session.numGames;
+  document.getElementById('session-score-type').value = session.scoreType || 'average';
   document.getElementById('session-team-size').value = session.teamSize;
 
   currentTeams = session.teams.map(t => ({
@@ -485,13 +711,15 @@ async function loadSession(round) {
     round: session.round,
     date: session.date,
     numGames: session.numGames,
+    scoreType: session.scoreType || 'average',
     teamSize: session.teamSize,
     teams: currentTeams,
     scores: session.scores.map(s => ({ name: s.name, baseScore: s.baseScore, team: s.team }))
   };
 
-  document.getElementById('scoring-title').textContent = `${session.round}회 번개 점수`;
-  document.getElementById('scoring-sub').textContent = `${formatDate(session.date)} · ${session.numGames}게임 · ${session.scores.length}명`;
+  const scoreType = currentSession.scoreType;
+  document.getElementById('scoring-title').textContent = `${sessionLabel(session, sessions)} 점수`;
+  document.getElementById('scoring-sub').textContent = `${formatDate(session.date)} · ${getMeetingType(session)} · ${session.scores.length}명 · ${scoreType === 'average' ? '에버기준' : '총핀기준'}`;
 
   buildScoreTable(currentSession.scores, session.numGames);
   buildTeamScoreTables(session.numGames);
@@ -514,7 +742,10 @@ async function loadSession(round) {
 window.loadSession = loadSession;
 
 async function deleteSession(round) {
-  if (!confirm(`${round}회 번개 기록을 삭제하시겠습니까?`)) return;
+  const sessions = await API.getSessions();
+  const ses = sessions.find(s => s.round === round);
+  const label = ses ? sessionLabel(ses, sessions) : round + '회';
+  if (!confirm(`${label} 기록을 삭제하시겠습니까?`)) return;
   await API.deleteSession(round);
   toast('삭제되었습니다', 'success');
   refreshSessionList();
@@ -525,98 +756,253 @@ window.deleteSession = deleteSession;
 // 기록 조회
 // ========================
 function initFilters() {
-  document.getElementById('filter-month').value = new Date().toISOString().slice(0, 7);
   document.getElementById('btn-filter').addEventListener('click', refreshRecords);
   document.getElementById('btn-rank-filter').addEventListener('click', refreshRanking);
+  document.getElementById('filter-type').addEventListener('change', function() {
+    document.getElementById('filter-round').value = '';
+    refreshRecords();
+  });
 }
 
 async function refreshRecords() {
-  const sessions = await API.getSessions();
+  const allSessions = await API.getSessions();
   const members = await API.getMembers();
 
+  // 유형 필터
+  const typeFilter = document.getElementById('filter-type').value;
+  const sessions = typeFilter ? allSessions.filter(s => getMeetingType(s) === typeFilter) : allSessions;
+
+  // 회차 필터 갱신
+  const filterRound = document.getElementById('filter-round');
+  const curRound = filterRound.value;
+  filterRound.innerHTML = '<option value="">전체</option>' +
+    sessions.map(s => '<option value="' + s.round + '">' + sessionLabel(s, allSessions) + ' (' + formatDate(s.date) + ')</option>').join('');
+  if (curRound) filterRound.value = curRound;
+
+  // 회원 필터 갱신
   const filterMember = document.getElementById('filter-member');
-  const cur = filterMember.value;
+  const curMember = filterMember.value;
   filterMember.innerHTML = '<option value="">전체</option>' +
-    members.map(m => `<option value="${esc(m.name)}">${esc(m.name)}</option>`).join('');
-  if (cur) filterMember.value = cur;
+    members.map(m => '<option value="' + esc(m.name) + '">' + esc(m.name) + '</option>').join('');
+  if (curMember) filterMember.value = curMember;
 
+  const roundFilter = document.getElementById('filter-round').value;
   const mFilter = document.getElementById('filter-member').value;
-  const monthFilter = document.getElementById('filter-month').value;
 
-  // 세션을 개인 레코드로 풀기
-  let records = [];
-  sessions.forEach(ses => {
-    if (monthFilter && !ses.date.startsWith(monthFilter)) return;
-    ses.scores.forEach(s => {
-      if (mFilter && s.name !== mFilter) return;
-      const total = sumGames(s.games, ses.numGames);
-      const avg = (total / ses.numGames).toFixed(1);
-      records.push({ round: ses.round, date: ses.date, name: s.name, games: s.games, numGames: ses.numGames, total, avg: parseFloat(avg), baseScore: s.baseScore, team: s.team });
-    });
-  });
-
+  const detailEl = document.getElementById('records-session-detail');
+  const tableCardEl = document.getElementById('records-table-card');
   const tableEl = document.getElementById('records-table');
-  if (records.length === 0) {
-    tableEl.innerHTML = emptyState('📊', '기록이 없습니다');
-    document.getElementById('personal-stats-card').style.display = 'none';
+  const statsCard = document.getElementById('personal-stats-card');
+
+  // 특정 회차 선택 시: 해당 모임 상세 표시
+  if (roundFilter) {
+    const ses = sessions.find(s => String(s.round) === roundFilter);
+    if (!ses) {
+      detailEl.innerHTML = '';
+      tableCardEl.style.display = 'none';
+      statsCard.style.display = 'none';
+      return;
+    }
+
+    const filteredScores = mFilter ? ses.scores.filter(s => s.name === mFilter) : ses.scores;
+    detailEl.innerHTML = renderSessionDetail(ses, filteredScores, !mFilter, allSessions);
+    tableCardEl.style.display = 'none';
+
+    if (mFilter && filteredScores.length > 0) {
+      renderPersonalStats(filteredScores, ses.numGames, mFilter);
+    } else {
+      statsCard.style.display = 'none';
+    }
     return;
   }
 
-  tableEl.innerHTML = `<div class="table-scroll">
-    <table class="data-table">
-      <thead><tr><th>회차</th><th>이름</th><th>1G</th><th>2G</th><th>3G</th><th>4G</th><th>합계</th><th>에버</th><th>기본</th><th>오차</th></tr></thead>
-      <tbody>
-        ${records.map(r => {
-          const diffAvg = r.baseScore > 0 ? (r.avg - r.baseScore).toFixed(1) : null;
-          return `<tr>
-            <td>${r.round}회</td>
-            <td><strong>${esc(r.name)}</strong></td>
-            <td>${r.games[0] || '-'}</td>
-            <td>${r.games[1] || '-'}</td>
-            <td>${r.games[2] || '-'}</td>
-            <td>${r.numGames >= 4 ? (r.games[3] || '-') : '-'}</td>
-            <td><strong>${r.total}</strong></td>
-            <td><strong>${r.avg}</strong></td>
-            <td>${r.baseScore || '-'}</td>
-            <td>${diffAvg !== null ? diffSpan(parseFloat(diffAvg)) : '-'}</td>
-          </tr>`;
-        }).join('')}
-      </tbody>
-    </table></div>`;
+  // 전체 회차
+  detailEl.innerHTML = '';
 
-  // 개인 통계
-  const statsCard = document.getElementById('personal-stats-card');
   if (mFilter) {
-    statsCard.style.display = 'block';
-    document.getElementById('personal-stats-title').textContent = `${mFilter} 통계`;
+    // 특정 회원의 전체 기록
+    let records = [];
+    sessions.forEach(ses => {
+      ses.scores.forEach(s => {
+        if (s.name !== mFilter) return;
+        const total = sumGames(s.games, ses.numGames);
+        const avg = (total / ses.numGames).toFixed(1);
+        records.push({ round: ses.round, date: ses.date, name: s.name, games: s.games, numGames: ses.numGames, total, avg: parseFloat(avg), baseScore: s.baseScore, team: s.team, label: sessionLabel(ses, allSessions) });
+      });
+    });
 
-    const allGames = records.flatMap(r => r.games.filter((g, i) => i < r.numGames && g > 0));
-    const totalAvg = allGames.length > 0 ? Math.round(allGames.reduce((a, b) => a + b, 0) / allGames.length) : 0;
-    const highGame = allGames.length > 0 ? Math.max(...allGames) : 0;
-    const lowGame = allGames.length > 0 ? Math.min(...allGames) : 0;
+    tableCardEl.style.display = 'block';
+    if (records.length === 0) {
+      tableEl.innerHTML = emptyState('📊', '기록이 없습니다');
+      statsCard.style.display = 'none';
+      return;
+    }
 
-    document.getElementById('personal-stats').innerHTML = `
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;text-align:center;">
-        <div style="padding:10px;background:var(--bg);border-radius:8px;">
-          <div style="font-size:0.75rem;color:var(--text-light)">참가</div>
-          <div style="font-size:1.3rem;font-weight:700;color:var(--primary)">${records.length}회</div>
-        </div>
-        <div style="padding:10px;background:var(--bg);border-radius:8px;">
-          <div style="font-size:0.75rem;color:var(--text-light)">에버</div>
-          <div style="font-size:1.3rem;font-weight:700;color:var(--accent)">${totalAvg}</div>
-        </div>
-        <div style="padding:10px;background:var(--bg);border-radius:8px;">
-          <div style="font-size:0.75rem;color:var(--text-light)">최고</div>
-          <div style="font-size:1.3rem;font-weight:700;color:var(--success)">${highGame}</div>
-        </div>
-        <div style="padding:10px;background:var(--bg);border-radius:8px;">
-          <div style="font-size:0.75rem;color:var(--text-light)">최저</div>
-          <div style="font-size:1.3rem;font-weight:700;color:var(--danger)">${lowGame}</div>
-        </div>
-      </div>`;
+    tableEl.innerHTML = renderMemberRecordsTable(records);
+    renderPersonalStats(records.map(r => ({ games: r.games, baseScore: r.baseScore })), records[0].numGames, mFilter, records.length);
   } else {
+    // 전체: 모임별 카드 목록
+    tableCardEl.style.display = 'none';
     statsCard.style.display = 'none';
+
+    if (sessions.length === 0) {
+      detailEl.innerHTML = '<div class="card">' + emptyState('📊', '기록이 없습니다') + '</div>';
+      return;
+    }
+
+    detailEl.innerHTML = sessions.map(ses => renderSessionCard(ses, allSessions)).join('');
   }
+}
+
+function renderSessionDetail(ses, scores, showTeam, allSessions) {
+  // 정렬용 데이터 준비
+  const rows = scores.map(s => {
+    const total = sumGames(s.games, ses.numGames);
+    const avg = parseFloat((total / ses.numGames).toFixed(1));
+    const base = s.baseScore || 0;
+    const diffAvg = base > 0 ? parseFloat((avg - base).toFixed(1)) : null;
+    const highGame = Math.max(...s.games.filter((g, i) => i < ses.numGames && g > 0), 0);
+    return { name: s.name, games: s.games, total, highGame, avg, base, diffAvg };
+  });
+
+  const tableId = 'session-detail-table';
+  let html = '<div class="card">';
+  html += '<h2>' + sessionLabel(ses, allSessions) + ' <span style="font-size:0.85rem;font-weight:400;color:var(--text-light)">' + formatDate(ses.date) + ' · ' + ses.scores.length + '명 · ' + ses.numGames + '게임</span></h2>';
+  html += '<h3 style="font-size:0.9rem;color:var(--primary);margin:12px 0 8px;">개인전</h3>';
+  html += '<div class="table-scroll"><table class="data-table sortable-table" id="' + tableId + '"><thead><tr>';
+  html += '<th class="sortable" data-sort="name">이름</th>';
+  for (let i = 0; i < ses.numGames; i++) html += '<th class="sortable" data-sort="g' + i + '">' + (i + 1) + 'G</th>';
+  html += '<th class="sortable" data-sort="total">총핀</th>';
+  html += '<th class="sortable" data-sort="highGame">단게임</th>';
+  html += '<th class="sortable" data-sort="avg">에버</th>';
+  html += '<th class="sortable" data-sort="base">기본</th>';
+  html += '<th class="sortable" data-sort="diffAvg">오차</th>';
+  html += '</tr></thead><tbody>';
+  html += buildDetailRows(rows, ses.numGames);
+  html += '</tbody></table></div>';
+  if (showTeam) html += renderTeamSummaryReadonly(ses);
+  html += '</div>';
+
+  // 정렬 이벤트 등록 (setTimeout으로 DOM 렌더 후)
+  setTimeout(() => attachSortHandlers(tableId, rows, ses.numGames, 'detail'), 0);
+  return html;
+}
+
+function buildDetailRows(rows, numGames) {
+  let html = '';
+  rows.forEach(r => {
+    html += '<tr>';
+    html += '<td><strong>' + esc(r.name) + '</strong></td>';
+    for (let i = 0; i < numGames; i++) html += '<td>' + (r.games[i] || 0) + '</td>';
+    html += '<td><strong>' + r.total + '</strong></td>';
+    html += '<td><strong>' + r.highGame + '</strong></td>';
+    html += '<td><strong>' + r.avg + '</strong></td>';
+    html += '<td>' + (r.base || '-') + '</td>';
+    html += '<td>' + (r.diffAvg !== null ? diffSpan(r.diffAvg) : '-') + '</td>';
+    html += '</tr>';
+  });
+  return html;
+}
+
+function renderSessionCard(ses, allSessions) {
+  const topScorer = ses.scores.reduce((best, s) => {
+    const total = sumGames(s.games, ses.numGames);
+    return total > (best.total || 0) ? { name: s.name, total } : best;
+  }, { total: 0 });
+
+  let winTeam = '';
+  if (ses.teams && ses.teams.length > 0) {
+    let best = { name: '', total: -Infinity };
+    ses.teams.forEach(t => {
+      const teamPlayers = ses.scores.filter(s => s.team === t.name);
+      let teamDiff = 0;
+      teamPlayers.forEach(p => {
+        for (let g = 0; g < ses.numGames; g++) teamDiff += (p.games[g] || 0) - (p.baseScore || 0);
+      });
+      if (teamDiff > best.total) best = { name: t.name, total: teamDiff };
+    });
+    winTeam = best.name;
+  }
+
+  let html = '<div class="card session-record-card" onclick="document.getElementById(\'filter-round\').value=\'' + ses.round + '\';refreshRecords();" style="cursor:pointer;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;">';
+  html += '<div><strong style="font-size:1.05rem;">' + sessionLabel(ses, allSessions) + '</strong>';
+  html += '<div style="font-size:0.8rem;color:var(--text-light);margin-top:2px;">' + formatDate(ses.date) + ' · ' + ses.scores.length + '명 · ' + ses.numGames + '게임</div></div>';
+  html += '<span style="font-size:1.2rem;">▸</span></div>';
+  html += '<div style="display:flex;gap:12px;margin-top:8px;font-size:0.8rem;">';
+  html += '<span>🏆 개인: <strong>' + esc(topScorer.name) + '</strong> (' + topScorer.total + ')</span>';
+  if (winTeam) html += '<span>👥 팀: <strong>' + winTeam + '</strong></span>';
+  html += '</div></div>';
+  return html;
+}
+
+function renderMemberRecordsTable(records) {
+  const tableId = 'member-records-table';
+  const rows = records.map(r => {
+    const diffAvg = r.baseScore > 0 ? parseFloat((r.avg - r.baseScore).toFixed(1)) : null;
+    const highGame = Math.max(...r.games.filter((g, i) => i < r.numGames && g > 0), 0);
+    return { round: r.round, label: r.label, name: r.name, games: r.games, numGames: r.numGames, total: r.total, highGame, avg: r.avg, base: r.baseScore, diffAvg };
+  });
+
+  let html = '<div class="table-scroll"><table class="data-table sortable-table" id="' + tableId + '">';
+  html += '<thead><tr>';
+  html += '<th class="sortable" data-sort="round">회차</th>';
+  html += '<th class="sortable" data-sort="name">이름</th>';
+  html += '<th class="sortable" data-sort="g0">1G</th>';
+  html += '<th class="sortable" data-sort="g1">2G</th>';
+  html += '<th class="sortable" data-sort="g2">3G</th>';
+  html += '<th class="sortable" data-sort="g3">4G</th>';
+  html += '<th class="sortable" data-sort="total">총핀</th>';
+  html += '<th class="sortable" data-sort="highGame">단게임</th>';
+  html += '<th class="sortable" data-sort="avg">에버</th>';
+  html += '<th class="sortable" data-sort="base">기본</th>';
+  html += '<th class="sortable" data-sort="diffAvg">오차</th>';
+  html += '</tr></thead><tbody>';
+  html += buildMemberRows(rows);
+  html += '</tbody></table></div>';
+
+  setTimeout(() => attachSortHandlers(tableId, rows, 4, 'member'), 0);
+  return html;
+}
+
+function buildMemberRows(rows) {
+  let html = '';
+  rows.forEach(r => {
+    html += '<tr>';
+    html += '<td>' + (r.label || r.round + '회') + '</td>';
+    html += '<td><strong>' + esc(r.name) + '</strong></td>';
+    html += '<td>' + (r.games[0] || '-') + '</td>';
+    html += '<td>' + (r.games[1] || '-') + '</td>';
+    html += '<td>' + (r.games[2] || '-') + '</td>';
+    html += '<td>' + (r.numGames >= 4 ? (r.games[3] || '-') : '-') + '</td>';
+    html += '<td><strong>' + r.total + '</strong></td>';
+    html += '<td><strong>' + r.highGame + '</strong></td>';
+    html += '<td><strong>' + r.avg + '</strong></td>';
+    html += '<td>' + (r.base || '-') + '</td>';
+    html += '<td>' + (r.diffAvg !== null ? diffSpan(r.diffAvg) : '-') + '</td>';
+    html += '</tr>';
+  });
+  return html;
+}
+
+function renderPersonalStats(records, numGames, memberName, sessionCount) {
+  const statsCard = document.getElementById('personal-stats-card');
+  statsCard.style.display = 'block';
+  document.getElementById('personal-stats-title').textContent = memberName + ' 통계';
+
+  const allGames = records.flatMap(r => (r.games || []).filter((g, i) => i < numGames && g > 0));
+  const count = sessionCount || records.length;
+  const totalAvg = allGames.length > 0 ? Math.round(allGames.reduce((a, b) => a + b, 0) / allGames.length) : 0;
+  const highGame = allGames.length > 0 ? Math.max(...allGames) : 0;
+  const lowGame = allGames.length > 0 ? Math.min(...allGames) : 0;
+
+  let html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;text-align:center;">';
+  html += '<div style="padding:10px;background:var(--bg);border-radius:8px;"><div style="font-size:0.75rem;color:var(--text-light)">참가</div><div style="font-size:1.3rem;font-weight:700;color:var(--primary)">' + count + '회</div></div>';
+  html += '<div style="padding:10px;background:var(--bg);border-radius:8px;"><div style="font-size:0.75rem;color:var(--text-light)">에버</div><div style="font-size:1.3rem;font-weight:700;color:var(--accent)">' + totalAvg + '</div></div>';
+  html += '<div style="padding:10px;background:var(--bg);border-radius:8px;"><div style="font-size:0.75rem;color:var(--text-light)">최고</div><div style="font-size:1.3rem;font-weight:700;color:var(--success)">' + highGame + '</div></div>';
+  html += '<div style="padding:10px;background:var(--bg);border-radius:8px;"><div style="font-size:0.75rem;color:var(--text-light)">최저</div><div style="font-size:1.3rem;font-weight:700;color:var(--danger)">' + lowGame + '</div></div>';
+  html += '</div>';
+  document.getElementById('personal-stats').innerHTML = html;
 }
 
 // ========================
@@ -660,7 +1046,7 @@ async function refreshRanking() {
     ses.scores.forEach(s => {
       s.games.forEach((g, i) => {
         if (i < ses.numGames && g > 0) {
-          gameRecords.push({ member: s.name, score: g, round: ses.round, game: `${i + 1}G` });
+          gameRecords.push({ member: s.name, score: g, round: ses.round, game: `${i + 1}G`, label: sessionLabel(ses, sessions) });
         }
       });
     });
@@ -674,7 +1060,7 @@ async function refreshRanking() {
           <div class="rank-num">${i + 1}</div>
           <div class="rank-info">
             <div class="rank-name">${esc(r.member)}</div>
-            <div class="rank-detail">${r.round}회 ${r.game}</div>
+            <div class="rank-detail">${r.label} ${r.game}</div>
           </div>
           <div class="rank-score">${r.score}</div>
         </li>
@@ -692,6 +1078,15 @@ function initMemberForm() {
     if (!name) return;
     try {
       await API.addMember(name, base);
+      // 현재 분기에 기준에버 저장
+      if (base > 0) {
+        const qKey = getCurrentQuarterKey();
+        const members = await API.getMembers();
+        const m = members.find(x => x.name === name);
+        const baseScores = (m && m.baseScores) || {};
+        baseScores[qKey] = base;
+        await API.updateMember(name, { baseScores });
+      }
       toast(`${name} 추가`, 'success');
       document.getElementById('new-member-name').value = '';
       document.getElementById('new-member-base').value = '';
@@ -699,31 +1094,152 @@ function initMemberForm() {
       refreshSessionTab();
     } catch (e) { toast(e.message, 'error'); }
   });
+
+  // 분기별 기준에버 조회
+  initBaseYearSelect();
+  document.getElementById('btn-base-view').addEventListener('click', refreshBaseScoreList);
 }
+
+function initBaseYearSelect() {
+  const sel = document.getElementById('base-year');
+  const curYear = new Date().getFullYear();
+  sel.innerHTML = '';
+  for (let y = curYear; y >= curYear - 3; y--) {
+    sel.innerHTML += `<option value="${y}">${y}년</option>`;
+  }
+  // 현재 분기 자동 선택
+  const q = getCurrentQuarter();
+  document.getElementById('base-quarter').value = q;
+}
+
+function getCurrentQuarter() {
+  const m = new Date().getMonth(); // 0-11
+  if (m < 3) return 'Q1';
+  if (m < 6) return 'Q2';
+  if (m < 9) return 'Q3';
+  return 'Q4';
+}
+
+function getCurrentQuarterKey() {
+  return `${new Date().getFullYear()}-${getCurrentQuarter()}`;
+}
+
+function getQuarterKey() {
+  const y = document.getElementById('base-year').value;
+  const q = document.getElementById('base-quarter').value;
+  return `${y}-${q}`;
+}
+
+function getMemberBaseForQuarter(member, qKey) {
+  if (!member.baseScores) return member.baseScore || 0;
+  return member.baseScores[qKey] !== undefined ? member.baseScores[qKey] : (member.baseScore || 0);
+}
+
+async function refreshBaseScoreList() {
+  const members = await API.getMembers();
+  const qKey = getQuarterKey();
+  const el = document.getElementById('base-score-list');
+  const y = document.getElementById('base-year').value;
+  const q = document.getElementById('base-quarter').value;
+  const qLabel = {'Q1':'1분기','Q2':'2분기','Q3':'3분기','Q4':'4분기'}[q];
+
+  el.innerHTML = `
+    <p style="font-size:0.82rem;color:var(--text-light);margin-bottom:8px;">${y}년 ${qLabel} 기준에버</p>
+    <div class="table-scroll">
+    <table class="data-table">
+      <thead><tr><th>#</th><th>이름</th><th>기준에버</th></tr></thead>
+      <tbody>
+        ${members.map((m, i) => {
+          const val = getMemberBaseForQuarter(m, qKey);
+          return `<tr>
+            <td>${i + 1}</td>
+            <td><strong>${esc(m.name)}</strong></td>
+            <td><input type="number" class="base-score-input" value="${val}" min="0" max="300" 
+                data-member="${esc(m.name)}" data-qkey="${qKey}" onchange="updateQuarterBase(this)"></td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+    </div>
+    <button class="btn btn-small" style="margin-top:8px;" onclick="copyBaseToCurrentQuarter()">\uD83D\uDCCB 현재 분기로 복사</button>
+  `;
+}
+
+async function updateQuarterBase(input) {
+  const name = input.dataset.member;
+  const qKey = input.dataset.qkey;
+  const val = parseInt(input.value) || 0;
+
+  const members = await API.getMembers();
+  const m = members.find(x => x.name === name);
+  if (!m) return;
+
+  const baseScores = m.baseScores || {};
+  baseScores[qKey] = val;
+
+  // 현재 분기면 baseScore도 업데이트
+  const curQKey = getCurrentQuarterKey();
+  const updates = { baseScores };
+  if (qKey === curQKey) updates.baseScore = val;
+
+  await API.updateMember(name, updates);
+  toast(`${name} ${qKey}: ${val}`, 'success');
+}
+window.updateQuarterBase = updateQuarterBase;
+
+async function copyBaseToCurrentQuarter() {
+  const curQKey = getCurrentQuarterKey();
+  const selQKey = getQuarterKey();
+  if (selQKey === curQKey) { toast('이미 현재 분기입니다', 'error'); return; }
+  if (!confirm(`${selQKey} 기준에버를 ${curQKey}로 복사하시겠습니까?`)) return;
+
+  const members = await API.getMembers();
+  for (const m of members) {
+    const val = getMemberBaseForQuarter(m, selQKey);
+    const baseScores = m.baseScores || {};
+    baseScores[curQKey] = val;
+    await API.updateMember(m.name, { baseScore: val, baseScores });
+  }
+  toast('복사 완료', 'success');
+  refreshBaseScoreList();
+  refreshMembers();
+}
+window.copyBaseToCurrentQuarter = copyBaseToCurrentQuarter;
 
 async function refreshMembers() {
   const members = await API.getMembers();
   document.getElementById('member-count').textContent = members.length;
   const el = document.getElementById('member-list');
+  const curQKey = getCurrentQuarterKey();
   if (members.length === 0) {
     el.innerHTML = emptyState('👥', '회원을 추가해주세요');
     return;
   }
-  el.innerHTML = members.map(m => `
+  el.innerHTML = members.map(m => {
+    const curBase = getMemberBaseForQuarter(m, curQKey);
+    return `
     <div class="member-item">
       <div>
         <div class="member-name">${esc(m.name)}</div>
-        <div class="member-sub">기준에버: <input type="number" class="base-score-input" value="${m.baseScore || 0}" min="0" max="300" data-member="${esc(m.name)}" onchange="updateBase(this)"></div>
+        <div class="member-sub">현재 기준에버: <strong>${curBase}</strong></div>
       </div>
       <button class="btn-icon delete" onclick="removeMember('${esc(m.name)}')">삭제</button>
     </div>
-  `).join('');
+  `}).join('');
+
+  // 분기별 리스트도 갱신
+  refreshBaseScoreList();
 }
 
 async function updateBase(input) {
   const name = input.dataset.member;
   const base = parseInt(input.value) || 0;
-  await API.updateMember(name, { baseScore: base });
+  const curQKey = getCurrentQuarterKey();
+  const members = await API.getMembers();
+  const m = members.find(x => x.name === name);
+  const baseScores = (m && m.baseScores) || {};
+  baseScores[curQKey] = base;
+  await API.updateMember(name, { baseScore: base, baseScores });
   toast(`${name} 기준에버: ${base}`, 'success');
 }
 window.updateBase = updateBase;
@@ -837,6 +1353,45 @@ function sumGames(games, numGames) {
   return t;
 }
 
+// 정렬 기능
+let sortState = {}; // { tableId: { key, dir } }
+
+function attachSortHandlers(tableId, rows, numGames, mode) {
+  const table = document.getElementById(tableId);
+  if (!table) return;
+  table.querySelectorAll('th.sortable').forEach(th => {
+    th.addEventListener('click', () => {
+      const key = th.dataset.sort;
+      const prev = sortState[tableId];
+      const dir = (prev && prev.key === key && prev.dir === 'asc') ? 'desc' : 'asc';
+      sortState[tableId] = { key, dir };
+
+      // 정렬 표시 업데이트
+      table.querySelectorAll('th.sortable').forEach(h => {
+        h.classList.remove('sort-asc', 'sort-desc');
+      });
+      th.classList.add(dir === 'asc' ? 'sort-asc' : 'sort-desc');
+
+      // 정렬 실행
+      const sorted = [...rows];
+      sorted.sort((a, b) => {
+        let va, vb;
+        if (key === 'name') { va = a.name; vb = b.name; }
+        else if (key.startsWith('g')) { const gi = parseInt(key.slice(1)); va = a.games[gi] || 0; vb = b.games[gi] || 0; }
+        else if (key === 'round') { va = a.round || 0; vb = b.round || 0; }
+        else { va = a[key] !== null && a[key] !== undefined ? a[key] : -Infinity; vb = b[key] !== null && b[key] !== undefined ? b[key] : -Infinity; }
+        if (typeof va === 'string') return dir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+        return dir === 'asc' ? va - vb : vb - va;
+      });
+
+      // tbody 갱신
+      const tbody = table.querySelector('tbody');
+      if (mode === 'detail') tbody.innerHTML = buildDetailRows(sorted, numGames);
+      else if (mode === 'member') tbody.innerHTML = buildMemberRows(sorted);
+    });
+  });
+}
+
 function gameHeaders(n) {
   return Array.from({ length: n }, (_, i) => `<th>${i + 1}G</th>`).join('');
 }
@@ -884,6 +1439,32 @@ function todayStr() {
 function autoSelectWeekType() {
   const w = Math.ceil(new Date().getDate() / 7);
   document.getElementById('session-games').value = (w === 1 || w === 3) ? '3' : '4';
+  autoFillRound();
+}
+
+function getMeetingType(ses) {
+  return ses.numGames === 3 ? '정모' : '벙개';
+}
+
+function getTypeRound(sessions, ses) {
+  const type = getMeetingType(ses);
+  const sametype = sessions.filter(s => getMeetingType(s) === type).sort((a, b) => a.round - b.round);
+  const idx = sametype.findIndex(s => s.round === ses.round);
+  return idx >= 0 ? idx + 1 : sametype.length + 1;
+}
+
+function sessionLabel(ses, sessions) {
+  const type = getMeetingType(ses);
+  const typeRound = sessions ? getTypeRound(sessions, ses) : ses.typeRound || ses.round;
+  return type + ' ' + typeRound + '회';
+}
+
+async function autoFillRound() {
+  const numGames = parseInt(document.getElementById('session-games').value);
+  const sessions = await API.getSessions();
+  const type = numGames === 3 ? '정모' : '벙개';
+  const count = sessions.filter(s => getMeetingType(s) === type).length;
+  document.getElementById('session-round').value = count + 1;
 }
 
 function esc(str) {
