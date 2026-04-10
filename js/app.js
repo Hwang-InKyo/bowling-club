@@ -32,10 +32,11 @@ function saveSessionAuth(role) {
 }
 
 function initLockScreen() {
-  // 저장된 세션 확인 (2시간 이내)
-  const savedRole = checkSavedSession();
-  if (savedRole) {
-    appRole = savedRole;
+  const pinInput = document.getElementById('pin-input');
+  const btnEnter = document.getElementById('btn-pin-enter');
+  const pinError = document.getElementById('pin-error');
+
+  function enterApp() {
     document.getElementById('lock-screen').style.display = 'none';
     document.getElementById('app-wrap').style.display = '';
     applyRole();
@@ -45,12 +46,7 @@ function initLockScreen() {
     initMemberForm();
     initFilters();
     refreshAll();
-    return;
   }
-
-  const pinInput = document.getElementById('pin-input');
-  const btnEnter = document.getElementById('btn-pin-enter');
-  const pinError = document.getElementById('pin-error');
 
   function tryPin() {
     const pin = pinInput.value.trim();
@@ -65,23 +61,15 @@ function initLockScreen() {
       return;
     }
     saveSessionAuth(appRole);
-    document.getElementById('lock-screen').style.display = 'none';
-    document.getElementById('app-wrap').style.display = '';
-    applyRole();
-    initTabs();
-    initSettings();
-    initSession();
-    initMemberForm();
-    initFilters();
-    refreshAll();
+    enterApp();
   }
 
+  // 항상 등록
   btnEnter.addEventListener('click', tryPin);
   pinInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') tryPin();
     pinError.style.display = 'none';
   });
-  pinInput.focus();
 
   document.getElementById('btn-logout').addEventListener('click', () => {
     sessionStorage.removeItem('bowling_session_auth');
@@ -91,6 +79,16 @@ function initLockScreen() {
     pinInput.value = '';
     pinInput.focus();
   });
+
+  // 저장된 세션 확인 (2시간 이내)
+  const savedRole = checkSavedSession();
+  if (savedRole) {
+    appRole = savedRole;
+    enterApp();
+    return;
+  }
+
+  pinInput.focus();
 }
 
 function applyRole() {
