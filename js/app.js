@@ -7,6 +7,7 @@ let currentTeams = [];
 let currentSession = null; // { round, date, numGames, teamSize, teams, scores }
 let guestPlayers = []; // 게스트 목록 [{name, baseScore}]
 let appRole = null; // 'admin' | 'viewer'
+let currentTournament = null;
 
 const PIN_ADMIN = '0410';
 const PIN_VIEWER = '0409';
@@ -43,6 +44,7 @@ function initLockScreen() {
     initTabs();
     initSettings();
     initSession();
+    initTournament();
     initMemberForm();
     initFilters();
     refreshAll();
@@ -136,6 +138,7 @@ async function refreshTab(tab) {
   switch (tab) {
     case 'home': await refreshHome(); break;
     case 'session': await refreshSessionTab(); break;
+    case 'tournament': await refreshTournament(); break;
     case 'records': await refreshRecords(); break;
     case 'ranking': await refreshRanking(); break;
     case 'members': await refreshMembers(); break;
@@ -145,7 +148,414 @@ async function refreshTab(tab) {
 async function refreshAll() {
   await refreshHome();
   await refreshSessionTab();
+  await refreshTournament();
   await refreshMembers();
+}
+
+// ========================
+// 토너먼트 (테스트용)
+// ========================
+function initTournament() {
+  const btnRandom = document.getElementById('btn-tournament-random');
+  const btnClear = document.getElementById('btn-tournament-clear');
+  if (!btnRandom || !btnClear) return;
+
+  btnRandom.addEventListener('click', generateRandomTournament);
+  btnClear.addEventListener('click', () => {
+    currentTournament = null;
+    renderTournament();
+  });
+}
+
+async function refreshTournament() {
+  renderTournament();
+}
+
+async function generateRandomTournament() {
+  try {
+    const members = await API.getMembers();
+    const count = members.length >= 24 ? 24 : (members.length >= 20 ? members.length : 20);
+    const selected = pickTournamentPlayers(members, count);
+    currentTournament = buildTournamentBracket(selected);
+    renderTournament();
+    toast(`${count}인 토너먼트 대진표 생성 완료`, 'success');
+  } catch (e) {
+    toast(e.message || '토너먼트 생성 실패', 'error');
+  }
+}
+
+function pickTournamentPlayers(members, count) {
+  const curQKey = getCurrentQuarterKey();
+  const pool = [...members].map(m => ({
+    name: m.name,
+    baseScore: getMemberBaseForQuarter(m, curQKey)
+  }));
+  const shuffledPool = shuffleArray(pool);
+  const picked = shuffledPool.slice(0, count);
+
+  // 회원 수가 부족하면 테스트용 이름으로 채움
+  if (picked.length < count) {
+    for (let i = picked.length + 1; i <= count; i++) {
+      picked.push({ name: `테스트참가자${i}`, baseScore: 180 });
+    }
+  }
+  return picked;
+}
+
+function buildTournamentBracket(players) {
+  if (!players || players.length < 20 || players.length > 24) {
+    throw new Error('토너먼트 참가자는 20~24명이어야 합니다.');
+  }
+
+  const seeded = shuffleArray(players).map((p, i) => ({ seed: i + 1, name: p.name, baseScore: p.baseScore || 0 }));
+  const slot = {};
+  seeded.slice(0, 20).forEach((s, i) => { slot[i + 1] = s; });
+  const extra = seeded.slice(20, 24);
+  const byeFill = [
+    extra[0] || { seed: null, name: '부전승', isBye: true },
+    extra[1] || { seed: null, name: '부전승', isBye: true },
+    extra[2] || { seed: null, name: '부전승', isBye: true },
+    extra[3] || { seed: null, name: '부전승', isBye: true }
+  ];
+
+  // 1차전(20명): 10명씩 2그룹으로 나누고, 각 그룹 상위 2명은 부전승
+  // A그룹: #1~#10, B그룹: #11~#20
+  const round1 = [
+    { id: 'R1-A-BYE1', a: slot[1], b: byeFill[0] },
+    { id: 'R1-A-BYE2', a: slot[2], b: byeFill[1] },
+    { id: 'R1-A1', a: slot[3], b: slot[10] },
+    { id: 'R1-A2', a: slot[4], b: slot[9] },
+    { id: 'R1-A3', a: slot[5], b: slot[8] },
+    { id: 'R1-A4', a: slot[6], b: slot[7] },
+
+    { id: 'R1-B-BYE1', a: slot[11], b: byeFill[2] },
+    { id: 'R1-B-BYE2', a: slot[12], b: byeFill[3] },
+    { id: 'R1-B1', a: slot[13], b: slot[20] },
+    { id: 'R1-B2', a: slot[14], b: slot[19] },
+    { id: 'R1-B3', a: slot[15], b: slot[18] },
+    { id: 'R1-B4', a: slot[16], b: slot[17] }
+  ];
+
+  // 2차전(12명): A/B 그룹에서 올라온 6명씩 교차 대진
+  const round2 = [
+    { id: 'R2-1', a: { seed: null, name: '승자 R1-A-BYE1' }, b: { seed: null, name: '승자 R1-A-BYE2' } },
+    { id: 'R2-2', a: { seed: null, name: '승자 R1-A1' }, b: { seed: null, name: '승자 R1-A2' } },
+    { id: 'R2-3', a: { seed: null, name: '승자 R1-A3' }, b: { seed: null, name: '승자 R1-A4' } },
+    { id: 'R2-4', a: { seed: null, name: '승자 R1-B-BYE1' }, b: { seed: null, name: '승자 R1-B-BYE2' } },
+    { id: 'R2-5', a: { seed: null, name: '승자 R1-B1' }, b: { seed: null, name: '승자 R1-B2' } },
+    { id: 'R2-6', a: { seed: null, name: '승자 R1-B3' }, b: { seed: null, name: '승자 R1-B4' } }
+  ];
+
+  // 3차전(6명): 2차전 승자 6명으로 3경기
+  const round3 = [
+    { id: 'R3-1', a: { seed: null, name: '승자 R2-1' }, b: { seed: null, name: '승자 R2-2' } },
+    { id: 'R3-2', a: { seed: null, name: '승자 R2-3' }, b: { seed: null, name: '승자 R2-4' } },
+    { id: 'R3-3', a: { seed: null, name: '승자 R2-5' }, b: { seed: null, name: '승자 R2-6' } }
+  ];
+
+  const finalRound = [
+    {
+      id: 'R4-FINAL',
+      players: [
+        { seed: null, name: '승자 R3-1' },
+        { seed: null, name: '승자 R3-2' },
+        { seed: null, name: '승자 R3-3' }
+      ]
+    }
+  ];
+
+  return {
+    selected: seeded,
+    rounds: [
+      { title: '1차전 (20명)', matches: round1 },
+      { title: '2차전 (12명)', matches: round2 },
+      { title: '3차전 (6명)', matches: round3 },
+      { title: '4차전 결승 (3명)', matches: finalRound }
+    ]
+  };
+}
+
+function renderTournament() {
+  const summaryEl = document.getElementById('tournament-summary');
+  const bracketEl = document.getElementById('tournament-bracket');
+  if (!summaryEl || !bracketEl) return;
+
+  if (!currentTournament) {
+    summaryEl.innerHTML = emptyState('🎯', '토너먼트 모드를 선택하고 점수를 입력하면 자동 반영됩니다');
+    bracketEl.innerHTML = emptyState('🧩', '아직 생성된 대진표가 없습니다');
+    return;
+  }
+
+  if (currentTournament.mode === 'teamRep') {
+    renderTeamRepresentativeTournament(summaryEl, bracketEl, currentTournament, currentSession);
+    return;
+  }
+
+  summaryEl.innerHTML = `
+    <p style="font-size:0.8rem;color:var(--text-light);margin-bottom:6px;">승리 기준: <strong>실점수 - 기준에버</strong> 값이 높은 선수</p>
+    <p style="font-size:0.78rem;color:var(--text-light);margin-bottom:6px;">라운드 기준: 1차전=1G, 2차전=2G, 3차전=3G, 4차전=4G</p>
+    <p style="font-size:0.82rem;color:var(--text-light);margin-bottom:8px;">선발 인원 ${currentTournament.selected.length}명</p>
+    <div class="tournament-picked-list">
+      ${currentTournament.selected.map(p => `<span class="tournament-chip">#${p.seed} ${esc(p.name)} <small>(기준 ${p.baseScore || 0})</small></span>`).join('')}
+    </div>
+  `;
+
+  const tournamentEval = evaluateTournament(currentTournament, currentSession);
+  const winners = tournamentEval.winners;
+  const scoreMap = tournamentEval.scoreMap;
+
+  function renderMatchCard(m, roundIdx) {
+    if (m.players && m.players.length === 3) {
+      return `
+        <div class="tournament-match final-three">
+          <div class="match-id">${m.id}</div>
+          ${m.players.map((p, i) => {
+            const resolved = resolveTournamentEntry(p, winners);
+            return `<div class="match-player">${i + 1}. ${formatTournamentPlayer(p, scoreMap, resolved, false, roundIdx)}</div>`;
+          }).join('')}
+        </div>
+      `;
+    }
+
+    const resolvedA = resolveTournamentEntry(m.a, winners);
+    const resolvedB = resolveTournamentEntry(m.b, winners);
+    const winner = winners[m.id];
+
+    return `
+      <div class="tournament-match">
+        <div class="match-id">${m.id}</div>
+        <div class="match-player ${winner && resolvedA && winner.name === resolvedA.name ? 'match-winner' : ''}">${formatTournamentPlayer(m.a, scoreMap, resolvedA, winner && resolvedA && winner.name === resolvedA.name, roundIdx)}</div>
+        <div class="match-vs">VS</div>
+        <div class="match-player ${winner && resolvedB && winner.name === resolvedB.name ? 'match-winner' : ''}">${formatTournamentPlayer(m.b, scoreMap, resolvedB, winner && resolvedB && winner.name === resolvedB.name, roundIdx)}</div>
+      </div>
+    `;
+  }
+
+  bracketEl.innerHTML = `
+    <div class="tournament-bracket">
+      ${currentTournament.rounds.map((round, roundIdx) => `
+        <div class="tournament-round">
+          <h3>${round.title}</h3>
+          ${round.matches.map(m => renderMatchCard(m, roundIdx)).join('')}
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function formatTournamentPlayer(player, scoreMap, resolvedPlayer, isWinner, roundIdx) {
+  if (!player) return '-';
+  if (player.isBye) return '부전승';
+
+  const resolved = resolvedPlayer && !resolvedPlayer.isBye ? resolvedPlayer : null;
+  const target = resolved || (player.seed ? player : null);
+  const score = target ? getRoundScore(scoreMap[target.name], roundIdx) : null;
+  const scoreHtml = score
+    ? `<span class="player-score">${score.label} ${score.adjusted >= 0 ? '+' : ''}${score.adjusted}</span>`
+    : '';
+
+  const displayPlayer = target || player;
+
+  if (displayPlayer.seed) {
+    return `<strong>[${displayPlayer.seed}]</strong> ${esc(displayPlayer.name)} <span class="player-base">기준 ${displayPlayer.baseScore || 0}</span> ${scoreHtml}${isWinner ? ' 🏅' : ''}`;
+  }
+  return `${esc(displayPlayer.name)} ${scoreHtml}${isWinner ? ' 🏅' : ''}`;
+}
+
+function buildTournamentScoreMapFromSession(session) {
+  const map = {};
+  if (!session || !session.scores || !session.numGames) return map;
+
+  session.scores.forEach((s, idx) => {
+    const base = s.baseScore || 0;
+    const games = Array.from({ length: 4 }, (_, g) => {
+      if (Array.isArray(s.games) && s.games[g] !== undefined) return s.games[g] || 0;
+      const inputEl = document.getElementById(`p${idx}_g${g}`);
+      return inputEl ? (parseInt(inputEl.value, 10) || 0) : 0;
+    });
+    map[s.name] = { base, games };
+  });
+  return map;
+}
+
+function getRoundScore(playerScore, roundIdx) {
+  if (!playerScore) return null;
+  const gi = Math.max(0, Math.min(roundIdx, 3));
+  const game = playerScore.games[gi];
+  if (game === undefined || game === null) return null;
+  return {
+    label: `${gi + 1}G`,
+    raw: game,
+    adjusted: game - (playerScore.base || 0)
+  };
+}
+
+function resolveTournamentEntry(entry, winners) {
+  if (!entry) return null;
+  if (entry.isBye) return entry;
+  if (entry.seed) return entry;
+
+  if (entry.name && entry.name.startsWith('승자 ')) {
+    const refId = entry.name.replace('승자 ', '');
+    return winners[refId] || null;
+  }
+  return entry;
+}
+
+function pickTournamentWinner(a, b, scoreMap, roundIdx) {
+  if (!a && !b) return null;
+  if (a && a.isBye) return b || null;
+  if (b && b.isBye) return a || null;
+  if (!a) return b || null;
+  if (!b) return a || null;
+
+  const sa = getRoundScore(scoreMap[a.name], roundIdx);
+  const sb = getRoundScore(scoreMap[b.name], roundIdx);
+  if (!sa && !sb) return null;
+  if (sa && !sb) return a;
+  if (!sa && sb) return b;
+
+  if (sa.adjusted !== sb.adjusted) return sa.adjusted > sb.adjusted ? a : b;
+  if (sa.raw !== sb.raw) return sa.raw > sb.raw ? a : b;
+  return a.name.localeCompare(b.name, 'ko') <= 0 ? a : b;
+}
+
+function evaluateTournament(tournament, session) {
+  const winners = {};
+  const scoreMap = buildTournamentScoreMapFromSession(session);
+  if (!tournament || !tournament.rounds) return { winners, scoreMap };
+
+  tournament.rounds.forEach((round, roundIdx) => {
+    round.matches.forEach(m => {
+      if (m.players && m.players.length === 3) return;
+
+      const a = resolveTournamentEntry(m.a, winners);
+      const b = resolveTournamentEntry(m.b, winners);
+      winners[m.id] = pickTournamentWinner(a, b, scoreMap, roundIdx);
+    });
+  });
+
+  return { winners, scoreMap };
+}
+
+function buildTeamRepresentativeTournament(teams) {
+  return {
+    mode: 'teamRep',
+    teams: (teams || []).map(t => ({
+      name: t.name,
+      members: (t.members || []).map(m => ({ name: m.name, baseScore: m.baseScore || 0 }))
+    }))
+  };
+}
+
+function compareRepEntry(a, b) {
+  const sa = a.score;
+  const sb = b.score;
+  if (!sa && !sb) return a.name.localeCompare(b.name, 'ko');
+  if (sa && !sb) return -1;
+  if (!sa && sb) return 1;
+  if (sa.adjusted !== sb.adjusted) return sb.adjusted - sa.adjusted;
+  if (sa.raw !== sb.raw) return sb.raw - sa.raw;
+  return a.name.localeCompare(b.name, 'ko');
+}
+
+function evaluateTeamRepresentativeTournament(tournament, session) {
+  const scoreMap = buildTournamentScoreMapFromSession(session);
+  const teamResults = (tournament.teams || []).map(team => {
+    const pool = (team.members || []).map(p => ({
+      name: p.name,
+      baseScore: p.baseScore || 0,
+      score: getRoundScore(scoreMap[p.name], 0)
+    })).sort(compareRepEntry);
+
+    const top3 = pool.slice(0, 3).map(p => ({
+      name: p.name,
+      baseScore: p.baseScore,
+      score: getRoundScore(scoreMap[p.name], 1)
+    })).sort(compareRepEntry);
+
+    const rep = top3.length > 0 ? {
+      name: top3[0].name,
+      baseScore: top3[0].baseScore,
+      score: getRoundScore(scoreMap[top3[0].name], 2)
+    } : null;
+
+    return { teamName: team.name, pool, top3, rep };
+  });
+
+  const finals = teamResults
+    .filter(t => !!t.rep)
+    .map(t => ({ teamName: t.teamName, ...t.rep }))
+    .sort(compareRepEntry);
+
+  return { teamResults, finals };
+}
+
+function formatRepScore(score) {
+  if (!score) return '<span class="player-score">미입력</span>';
+  return `<span class="player-score">${score.label} ${score.adjusted >= 0 ? '+' : ''}${score.adjusted}</span>`;
+}
+
+function renderTeamRepresentativeTournament(summaryEl, bracketEl, tournament, session) {
+  const evalData = evaluateTeamRepresentativeTournament(tournament, session);
+
+  summaryEl.innerHTML = `
+    <p style="font-size:0.8rem;color:var(--text-light);margin-bottom:6px;">팀대표선발 규칙: 1차전(1G) 팀별 상위 3명 → 2차전(2G) 팀별 상위 1명 → 3차전(3G) 대표전</p>
+    <p style="font-size:0.82rem;color:var(--text-light);margin-bottom:8px;">승리 기준: 해당 라운드 게임의 <strong>실점수 - 기준에버</strong></p>
+  `;
+
+  bracketEl.innerHTML = `
+    <div class="tournament-bracket">
+      <div class="tournament-round">
+        <h3>1차전 (팀별 3명 선발 · 1G)</h3>
+        ${evalData.teamResults.map(tr => `
+          <div class="tournament-match">
+            <div class="match-id">${tr.teamName}</div>
+            ${tr.pool.map((p, idx) => `
+              <div class="match-player ${idx < 3 ? 'match-winner' : ''}">
+                ${idx + 1}. ${esc(p.name)} <span class="player-base">기준 ${p.baseScore}</span> ${formatRepScore(p.score)}
+              </div>
+            `).join('')}
+          </div>
+        `).join('')}
+      </div>
+
+      <div class="tournament-round">
+        <h3>2차전 (팀별 1명 선발 · 2G)</h3>
+        ${evalData.teamResults.map(tr => `
+          <div class="tournament-match">
+            <div class="match-id">${tr.teamName}</div>
+            ${tr.top3.length === 0 ? '<div class="match-player">미확정</div>' : tr.top3.map((p, idx) => `
+              <div class="match-player ${idx === 0 ? 'match-winner' : ''}">
+                ${idx + 1}. ${esc(p.name)} <span class="player-base">기준 ${p.baseScore}</span> ${formatRepScore(p.score)} ${idx === 0 ? '🏅' : ''}
+              </div>
+            `).join('')}
+          </div>
+        `).join('')}
+      </div>
+
+      <div class="tournament-round">
+        <h3>3차전 (대표전 · 3G)</h3>
+        <div class="tournament-match final-three">
+          <div class="match-id">팀 대표 순위</div>
+          ${evalData.finals.length === 0 ? '<div class="match-player">미확정</div>' : evalData.finals.map((p, idx) => `
+            <div class="match-player ${idx === 0 ? 'match-winner' : ''}">
+              ${idx + 1}. ${esc(p.teamName)} · ${esc(p.name)} <span class="player-base">기준 ${p.baseScore}</span> ${formatRepScore(p.score)} ${idx === 0 ? '🏆' : ''}
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function shuffleArray(arr) {
+  const clone = [...arr];
+  for (let i = clone.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [clone[i], clone[j]] = [clone[j], clone[i]];
+  }
+  return clone;
 }
 
 // ========================
@@ -244,7 +654,10 @@ function initSession() {
   autoSelectWeekType();
 
   // 모임 유형 변경 시 자동 회차 갱신
-  document.getElementById('session-games').addEventListener('change', autoFillRound);
+  document.getElementById('session-games').addEventListener('change', () => {
+    autoFillRound();
+    updateTournamentOptionState();
+  });
 
   document.getElementById('btn-sel-all').addEventListener('click', () => {
     document.querySelectorAll('#session-member-checks input[type="checkbox"]').forEach(cb => cb.checked = true);
@@ -255,17 +668,61 @@ function initSession() {
 
   document.getElementById('btn-make-teams').addEventListener('click', stepMakeTeams);
   document.getElementById('btn-shuffle').addEventListener('click', stepMakeTeams);
-  document.getElementById('btn-start-input').addEventListener('click', stepStartScoring);
-  document.getElementById('btn-back-teams').addEventListener('click', () => {
-    show('session-step2'); hide('session-step3');
+  document.getElementById('btn-back-to-setup').addEventListener('click', () => {
+    show('session-step1'); hide('session-step2');
   });
-  document.getElementById('btn-save-session').addEventListener('click', saveCurrentSession);
+  document.getElementById('btn-save-setup').addEventListener('click', saveTeamSetup);
 
   // 게스트 추가
   document.getElementById('btn-add-guest').addEventListener('click', addGuest);
 
   // 참가자 수 업데이트
   document.getElementById('session-member-checks').addEventListener('change', updateParticipantSummary);
+  document.getElementById('session-tournament').addEventListener('change', () => {
+    if (document.getElementById('session-tournament').checked) {
+      document.getElementById('session-team-rep').checked = false;
+    }
+    updateParticipantSummary();
+  });
+  document.getElementById('session-team-rep').addEventListener('change', () => {
+    if (document.getElementById('session-team-rep').checked) {
+      document.getElementById('session-tournament').checked = false;
+    }
+    updateParticipantSummary();
+  });
+
+  updateTournamentOptionState();
+  initScoringTab();
+}
+
+function updateTournamentOptionState() {
+  const games = parseInt(document.getElementById('session-games').value, 10);
+  const cbTournament = document.getElementById('session-tournament');
+  const cbTeamRep = document.getElementById('session-team-rep');
+  const helpTournament = document.getElementById('session-tournament-help');
+  const helpTeamRep = document.getElementById('session-team-rep-help');
+  const tournamentEnabled = games === 4;
+  const teamRepEnabled = games === 3;
+
+  cbTournament.disabled = !tournamentEnabled;
+  cbTeamRep.disabled = !teamRepEnabled;
+
+  if (!tournamentEnabled) cbTournament.checked = false;
+  if (!teamRepEnabled) cbTeamRep.checked = false;
+
+  if (cbTournament.checked) cbTeamRep.checked = false;
+  if (cbTeamRep.checked) cbTournament.checked = false;
+
+  if (helpTournament) {
+    helpTournament.textContent = tournamentEnabled
+      ? '4게임 벙개에서만 사용 가능 (참가자 20~24명)'
+      : '토너먼트는 벙개(4게임)에서만 선택할 수 있습니다';
+  }
+  if (helpTeamRep) {
+    helpTeamRep.textContent = teamRepEnabled
+      ? '3게임 정모에서만 사용 가능 (팀별 3명 선발 → 1명 대표 → 대표전)'
+      : '팀대표선발은 정모(3게임)에서만 선택할 수 있습니다';
+  }
 }
 
 async function refreshSessionTab() {
@@ -283,6 +740,7 @@ async function refreshSessionTab() {
 
   guestPlayers = [];
   renderGuestList();
+  updateTournamentOptionState();
   updateParticipantSummary();
   await refreshSessionList();
 }
@@ -326,17 +784,108 @@ function updateParticipantSummary() {
   const el = document.getElementById('participant-summary');
   const teamSize = parseInt(document.getElementById('session-team-size').value);
   const numTeams = teamSize > 0 ? Math.ceil(total / teamSize) : 0;
-  el.textContent = `참가자 ${total}명 (회원 ${checked.length} + 게스트 ${guestPlayers.length}) → ${numTeams}팀 예상`;
+  const tChecked = document.getElementById('session-tournament').checked;
+  const repChecked = document.getElementById('session-team-rep').checked;
+  const tText = tChecked ? ` · 토너먼트 ${total >= 20 && total <= 24 ? '가능' : '불가(20~24명)'}` : '';
+  const repText = repChecked ? ` · 팀대표선발 ${numTeams >= 2 ? '가능' : '불가(최소 2팀)'}` : '';
+  el.textContent = `참가자 ${total}명 (회원 ${checked.length} + 게스트 ${guestPlayers.length}) → ${numTeams}팀 예상${tText}${repText}`;
 }
+
+function initScoringTab() {
+  document.getElementById('btn-scoring-back').addEventListener('click', () => {
+    show('scoring-select-session');
+    hide('scoring-input-form');
+  });
+  document.getElementById('btn-save-session').addEventListener('click', saveCurrentSession);
+  refreshScoringSessionList();
+}
+
+async function refreshScoringSessionList() {
+  const sessions = await API.getSessions();
+  const el = document.getElementById('scoring-session-list');
+
+  if (sessions.length === 0) {
+    el.innerHTML = emptyState('📋', '저장된 모임이 없습니다');
+    return;
+  }
+
+  el.innerHTML = sessions.map(s => `
+    <div class="session-item" onclick="loadSessionForScoring(${s.round})">
+      <div class="session-info">
+        <div class="session-round">${sessionLabel(s, sessions)}</div>
+        <div class="session-meta">${formatDate(s.date)} · ${s.scores.length}명 · ${getMeetingType(s)}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function loadSessionForScoring(round) {
+  const sessions = await API.getSessions();
+  const session = sessions.find(s => s.round === round);
+  if (!session) return;
+
+  // 세션 복원
+  currentTeams = session.teams.map(t => ({
+    name: t.name,
+    members: t.members,
+    totalBase: t.totalBase
+  }));
+
+  currentSession = {
+    round: session.round,
+    date: session.date,
+    numGames: session.numGames,
+    scoreType: session.scoreType || 'average',
+    teamSize: session.teamSize,
+    tournamentEnabled: !!session.tournamentEnabled,
+    tournament: session.tournament || null,
+    teamRepEnabled: !!session.teamRepEnabled,
+    teamRep: session.teamRep || null,
+    teams: currentTeams,
+    scores: session.scores.map(s => ({ name: s.name, baseScore: s.baseScore, team: s.team }))
+  };
+  currentTournament = session.tournament || session.teamRep || null;
+
+  const scoreType = currentSession.scoreType;
+  document.getElementById('scoring-title').textContent = `${sessionLabel(session, sessions)} 점수`;
+  document.getElementById('scoring-sub').textContent = `${formatDate(session.date)} · ${getMeetingType(session)} · ${session.scores.length}명 · ${scoreType === 'average' ? '에버기준' : '총핀기준'}`;
+
+  buildScoreTable(currentSession.scores, session.numGames);
+  buildTeamScoreTables(session.numGames);
+
+  // 점수 복원
+  session.scores.forEach((s, idx) => {
+    s.games.forEach((g, gi) => {
+      if (gi < session.numGames) {
+        const el = document.getElementById(`p${idx}_g${gi}`);
+        if (el) el.value = g || '';
+      }
+    });
+    recalcRow(idx, session.numGames);
+  });
+
+  renderTournament();
+  hide('scoring-select-session');
+  show('scoring-input-form');
+}
+window.loadSessionForScoring = loadSessionForScoring;
 
 function stepMakeTeams() {
   const teamSize = parseInt(document.getElementById('session-team-size').value);
+  const numGames = parseInt(document.getElementById('session-games').value, 10);
+  const tournamentEnabled = document.getElementById('session-tournament').checked && numGames === 4;
+  const teamRepEnabled = document.getElementById('session-team-rep').checked && numGames === 3;
   const checked = document.querySelectorAll('#session-member-checks input:checked');
   const memberNames = Array.from(checked).map(cb => cb.value);
   const totalCount = memberNames.length + guestPlayers.length;
 
   if (totalCount < teamSize) {
     toast(`최소 ${teamSize}명 이상 필요 (현재 ${totalCount}명)`, 'error');
+    return;
+  }
+
+  if (tournamentEnabled && (totalCount < 20 || totalCount > 24)) {
+    toast(`토너먼트는 참가자 20~24명에서만 진행할 수 있습니다 (현재 ${totalCount}명)`, 'error');
     return;
   }
 
@@ -349,6 +898,12 @@ function stepMakeTeams() {
     // 게스트 합치기
     const allPlayers = [...selected, ...guestPlayers.map(g => ({ name: g.name, baseScore: g.baseScore }))];
     currentTeams = balanceTeams(allPlayers, teamSize);
+
+    if (teamRepEnabled && currentTeams.length < 2) {
+      toast('팀대표선발은 최소 2팀이 필요합니다', 'error');
+      return;
+    }
+
     renderTeamPreview();
     show('session-step2');
   });
@@ -405,9 +960,58 @@ function movePlayer(selectEl) {
 }
 window.movePlayer = movePlayer;
 
+async function saveTeamSetup() {
+  if (currentTeams.length === 0) {
+    toast('팀이 구성되지 않았습니다', 'error');
+    return;
+  }
+
+  const round = parseInt(document.getElementById('session-round').value) || 0;
+  const date = document.getElementById('session-date').value;
+  const numGames = parseInt(document.getElementById('session-games').value);
+  const scoreType = document.getElementById('session-score-type').value;
+  const teamSize = parseInt(document.getElementById('session-team-size').value);
+  const tournamentEnabled = document.getElementById('session-tournament').checked && numGames === 4;
+  const teamRepEnabled = document.getElementById('session-team-rep').checked && numGames === 3;
+
+  // 모든 팀원을 scores 배열로
+  const allPlayers = [];
+  currentTeams.forEach(team => {
+    team.members.forEach(m => {
+      allPlayers.push({ name: m.name, baseScore: m.baseScore, team: team.name, games: Array(numGames).fill(0) });
+    });
+  });
+
+  const session = {
+    round,
+    date,
+    numGames,
+    scoreType,
+    teamSize,
+    tournamentEnabled,
+    tournament: null,
+    teamRepEnabled,
+    teamRep: null,
+    teams: currentTeams.map(t => ({ name: t.name, members: t.members.map(m => ({ name: m.name, baseScore: m.baseScore })), totalBase: t.totalBase })),
+    scores: allPlayers
+  };
+
+  try {
+    await API.saveSession(session);
+    toast(`${getMeetingType(session)} ${round}회 팀 구성 저장 완료`, 'success');
+    refreshSessionList();
+    await refreshScoringSessionList();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+window.saveTeamSetup = saveTeamSetup;
+
 function stepStartScoring() {
   const numGames = parseInt(document.getElementById('session-games').value);
   const scoreType = document.getElementById('session-score-type').value; // 'average' or 'totalpin'
+  const tournamentEnabled = document.getElementById('session-tournament').checked && numGames === 4;
+  const teamRepEnabled = document.getElementById('session-team-rep').checked && numGames === 3;
   const round = parseInt(document.getElementById('session-round').value) || 0;
   const date = document.getElementById('session-date').value;
 
@@ -419,17 +1023,47 @@ function stepStartScoring() {
     });
   });
 
-  currentSession = { round, date, numGames, scoreType, teamSize: currentTeams[0]?.members.length || 5, teams: currentTeams, scores: allPlayers };
+  if (tournamentEnabled && (allPlayers.length < 20 || allPlayers.length > 24)) {
+    toast(`토너먼트는 참가자 20~24명에서만 진행할 수 있습니다 (현재 ${allPlayers.length}명)`, 'error');
+    return;
+  }
+
+  if (teamRepEnabled && currentTeams.length < 2) {
+    toast('팀대표선발은 최소 2팀이 필요합니다', 'error');
+    return;
+  }
+
+  const tournament = tournamentEnabled
+    ? buildTournamentBracket(allPlayers.map(p => ({ name: p.name, baseScore: p.baseScore })))
+    : null;
+  const teamRep = teamRepEnabled
+    ? buildTeamRepresentativeTournament(currentTeams)
+    : null;
+
+  currentSession = {
+    round,
+    date,
+    numGames,
+    scoreType,
+    teamSize: currentTeams[0]?.members.length || 5,
+    teams: currentTeams,
+    scores: allPlayers,
+    tournamentEnabled,
+    tournament,
+    teamRepEnabled,
+    teamRep
+  };
+  currentTournament = tournament || teamRep;
 
   document.getElementById('scoring-title').textContent = `${getMeetingType({numGames})} ${round}회 점수`;
   document.getElementById('scoring-sub').textContent = `${formatDate(date)} · ${numGames === 3 ? '정모' : '벙개'} · ${allPlayers.length}명 · ${scoreType === 'average' ? '에버기준' : '총핀기준'}`;
 
   buildScoreTable(allPlayers, numGames);
   buildTeamScoreTables(numGames);
+  renderTournament();
 
   hide('session-step1');
   hide('session-step2');
-  show('session-step3');
 }
 
 function buildScoreTable(players, numGames) {
@@ -450,7 +1084,7 @@ function buildScoreTable(players, numGames) {
       <td>${idx + 1}</td>
       <td class="name-col">${esc(p.name)}</td>
       ${Array.from({length: numGames}, (_, g) =>
-        `<td><input type="number" id="${rid}_g${g}" min="0" max="300" data-p="${idx}" data-g="${g}" class="score-input" placeholder="0"></td>`
+        `<td><div class="score-cell"><input type="number" id="${rid}_g${g}" min="0" max="300" data-p="${idx}" data-g="${g}" class="score-input" placeholder="0"><label class="allcover-label" title="올커버"><input type="checkbox" id="${rid}_a${g}" data-p="${idx}" data-g="${g}" class="allcover-checkbox"></label></div></td>`
       ).join('')}
       <td class="calc" id="${rid}_total">0</td>
       <td class="calc" id="${rid}_avg">0</td>
@@ -469,7 +1103,6 @@ function buildScoreTable(players, numGames) {
   table.querySelectorAll('.score-input').forEach(input => {
     input.addEventListener('input', () => {
       recalcRow(parseInt(input.dataset.p), numGames);
-      // 디바운스 자동저장 (1.5초 입력 멈추면 저장)
       clearTimeout(autoSaveTimer);
       autoSaveTimer = setTimeout(() => {
         saveCurrentSession(true);
@@ -517,6 +1150,9 @@ function recalcRow(pIdx, numGames) {
 
   // 팀 테이블 갱신
   recalcTeamScores(numGames);
+
+  // 토너먼트 결과 갱신
+  if (currentTournament) renderTournament();
 }
 
 function buildTeamScoreTables(numGames) {
@@ -649,6 +1285,10 @@ async function saveCurrentSession(isAuto) {
     numGames,
     scoreType: currentSession.scoreType || 'average',
     teamSize: currentSession.teamSize,
+    tournamentEnabled: !!currentSession.tournamentEnabled,
+    tournament: currentSession.tournament || null,
+    teamRepEnabled: !!currentSession.teamRepEnabled,
+    teamRep: currentSession.teamRep || null,
     teams: currentTeams.map(t => ({ name: t.name, members: t.members.map(m => ({ name: m.name, baseScore: m.baseScore })), totalBase: t.totalBase })),
     scores
   };
@@ -677,14 +1317,17 @@ async function refreshSessionList() {
   }
 
   el.innerHTML = sessions.map(s => `
-    <div class="session-item" onclick="loadSession(${s.round})">
+    <div class="session-item">
       <div class="session-info">
         <div class="session-round">${sessionLabel(s, sessions)}</div>
         <div class="session-meta">${formatDate(s.date)} · ${s.scores.length}명 · ${getMeetingType(s)}</div>
       </div>
-      <button class="btn-icon delete" onclick="event.stopPropagation();deleteSession(${s.round})">삭제</button>
+      <button class="btn-icon delete" onclick="deleteSession(${s.round})">삭제</button>
     </div>
   `).join('');
+  
+  // 점수입력 탭의 세션 목록도 갱신
+  await refreshScoringSessionList();
 }
 
 async function loadSession(round) {
@@ -698,6 +1341,11 @@ async function loadSession(round) {
   document.getElementById('session-games').value = session.numGames;
   document.getElementById('session-score-type').value = session.scoreType || 'average';
   document.getElementById('session-team-size').value = session.teamSize;
+  document.getElementById('session-tournament').checked = !!session.tournamentEnabled;
+  document.getElementById('session-team-rep').checked = !!session.teamRepEnabled;
+  updateTournamentOptionState();
+  if (session.numGames !== 4) document.getElementById('session-tournament').checked = false;
+  if (session.numGames !== 3) document.getElementById('session-team-rep').checked = false;
 
   currentTeams = session.teams.map(t => ({
     name: t.name,
@@ -711,9 +1359,14 @@ async function loadSession(round) {
     numGames: session.numGames,
     scoreType: session.scoreType || 'average',
     teamSize: session.teamSize,
+    tournamentEnabled: !!session.tournamentEnabled,
+    tournament: session.tournament || null,
+    teamRepEnabled: !!session.teamRepEnabled,
+    teamRep: session.teamRep || null,
     teams: currentTeams,
     scores: session.scores.map(s => ({ name: s.name, baseScore: s.baseScore, team: s.team }))
   };
+  currentTournament = session.tournament || session.teamRep || null;
 
   const scoreType = currentSession.scoreType;
   document.getElementById('scoring-title').textContent = `${sessionLabel(session, sessions)} 점수`;
@@ -736,6 +1389,7 @@ async function loadSession(round) {
   hide('session-step1');
   hide('session-step2');
   show('session-step3');
+  renderTournament();
 }
 window.loadSession = loadSession;
 
