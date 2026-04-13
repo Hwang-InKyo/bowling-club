@@ -36,6 +36,7 @@
     <button class="tab-btn" data-tab="scoring">✏️ 점수입력</button>
     <button class="tab-btn" data-tab="tournament">🎯 토너먼트</button>
     <button class="tab-btn" data-tab="records">📊 기록</button>
+    <button class="tab-btn" data-tab="stats">📈 통계</button>
     <button class="tab-btn" data-tab="ranking">🏆 랭킹</button>
     <button class="tab-btn" data-tab="members">👥 회원</button>
   </nav>
@@ -43,6 +44,10 @@
   <main>
     <!-- 홈 -->
     <section id="tab-home" class="tab-content active">
+      <div class="card" id="today-session-card" style="display:none;">
+        <h2 id="today-session-title">오늘의 모임</h2>
+        <div id="today-session"></div>
+      </div>
       <div class="card">
         <h2>최근 모임</h2>
         <div id="recent-session"></div>
@@ -58,6 +63,16 @@
       <!-- STEP 1: 모임 설정 -->
       <div class="card" id="session-step1">
         <h2>모임 설정</h2>
+        <div class="form-group" style="margin-bottom:12px;">
+          <label for="session-load">기존 모임 불러오기</label>
+          <div style="display:flex;gap:6px;">
+            <select id="session-load" style="flex:1;">
+              <option value="">-- 새 모임 --</option>
+            </select>
+            <button class="btn btn-small" id="btn-load-session" type="button">불러오기</button>
+          </div>
+        </div>
+        <hr style="border:none;border-top:1px solid var(--border);margin-bottom:12px;">
         <div class="form-row">
           <div class="form-group">
             <label for="session-round">회차</label>
@@ -178,6 +193,11 @@
           <button class="btn btn-small" id="btn-scoring-back">← 모임 선택</button>
           <button class="btn btn-primary" id="btn-save-session">💾 저장</button>
         </div>
+        <div class="card" id="scoring-tournament-card" style="display:none;">
+          <h2>토너먼트 / 팀대표선발</h2>
+          <div id="scoring-tournament-summary"></div>
+          <div id="scoring-tournament-bracket"></div>
+        </div>
       </div>
     </section>
 
@@ -253,6 +273,42 @@
     </section>
 
     <!-- 회원 관리 -->
+    <section id="tab-stats" class="tab-content">
+      <div class="card">
+        <h2>📈 점수 통계</h2>
+        <div class="filter-row" style="margin-bottom:8px;flex-wrap:wrap;gap:8px;">
+          <div class="form-group">
+            <label for="stats-period">기간</label>
+            <select id="stats-period">
+              <option value="1m">1개월</option>
+              <option value="3m" selected>3개월</option>
+              <option value="6m">6개월</option>
+              <option value="1y">1년</option>
+              <option value="all">전체</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="stats-start-session">시작 모임</label>
+            <select id="stats-start-session">
+              <option value="">최신부터</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="stats-member">대상</label>
+            <select id="stats-member">
+              <option value="">전체 회원</option>
+            </select>
+          </div>
+        </div>
+        <div id="stats-chart-container" style="position:relative;width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;">
+          <canvas id="stats-canvas" style="display:block;"></canvas>
+        </div>
+        <div id="stats-legend" style="margin-top:8px;font-size:0.78rem;color:var(--text-light);text-align:center;">
+          ● 평균 점수 &nbsp; │ 세로선: 최고~최저
+        </div>
+      </div>
+    </section>
+
     <section id="tab-members" class="tab-content">
       <div class="card">
         <h2>회원 관리</h2>
