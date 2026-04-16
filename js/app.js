@@ -49,6 +49,8 @@ function initLockScreen() {
       initMemberForm();
       initFilters();
       initStats();
+      initDues();
+      initSettlement();
       refreshAll();
     } catch (e) {
       console.error('enterApp error:', e);
@@ -113,17 +115,23 @@ function applyRole() {
   const sessionTab = document.querySelector('[data-tab="session"]');
   const scoringTab = document.querySelector('[data-tab="scoring"]');
   const membersTab = document.querySelector('[data-tab="members"]');
+  const duesTab = document.querySelector('[data-tab="dues"]');
+  const settleTab = document.querySelector('[data-tab="settlement"]');
   const settingsToggle = document.getElementById('settings-toggle');
 
   if (appRole === 'viewer') {
     if (sessionTab) sessionTab.style.display = 'none';
     if (scoringTab) scoringTab.style.display = 'none';
     if (membersTab) membersTab.style.display = 'none';
+    if (duesTab) duesTab.style.display = 'none';
+    if (settleTab) settleTab.style.display = 'none';
     if (settingsToggle) settingsToggle.style.display = 'none';
   } else {
     if (sessionTab) sessionTab.style.display = '';
     if (scoringTab) scoringTab.style.display = '';
     if (membersTab) membersTab.style.display = '';
+    if (duesTab) duesTab.style.display = '';
+    if (settleTab) settleTab.style.display = '';
     if (settingsToggle) settingsToggle.style.display = '';
   }
 }
@@ -151,6 +159,8 @@ async function refreshTab(tab) {
     case 'records': await refreshRecords(); break;
     case 'stats': await refreshStats(); break;
     case 'ranking': await refreshRanking(); break;
+    case 'dues': await refreshDues(); break;
+    case 'settlement': await refreshSettleDropdown(); break;
     case 'members': await refreshMembers(); break;
   }
 }
@@ -2395,10 +2405,11 @@ function initMemberForm() {
   document.getElementById('member-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const name = document.getElementById('new-member-name').value.trim();
+    const gender = document.getElementById('new-member-gender').value;
     const base = parseInt(document.getElementById('new-member-base').value) || 0;
     if (!name) return;
     try {
-      await API.addMember(name, base);
+      await API.addMember(name, base, gender);
       // 현재 분기에 기준에버 저장
       if (base > 0) {
         const qKey = getCurrentQuarterKey();
@@ -2410,6 +2421,7 @@ function initMemberForm() {
       }
       toast(`${name} 추가`, 'success');
       document.getElementById('new-member-name').value = '';
+      document.getElementById('new-member-gender').value = 'M';
       document.getElementById('new-member-base').value = '';
       refreshMembers();
       refreshSessionTab();
@@ -2538,10 +2550,11 @@ async function refreshMembers() {
   }
   el.innerHTML = members.map(m => {
     const curBase = getMemberBaseForQuarter(m, curQKey);
+    const genderLabel = m.gender === 'F' ? '여' : '남';
     return `
     <div class="member-item">
       <div>
-        <div class="member-name">${esc(m.name)}</div>
+        <div class="member-name">${esc(m.name)} <small style="color:var(--text-light);font-weight:400;">(${genderLabel})</small></div>
         <div class="member-sub">현재 기준에버: <strong>${curBase}</strong></div>
       </div>
       <button class="btn-icon delete" onclick="removeMember('${esc(m.name)}')">삭제</button>
@@ -2609,9 +2622,9 @@ function initSettings() {
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (ev) => {
-      try { API.importData(ev.target.result); toast('가져오기 완료', 'success'); refreshAll(); }
-      catch { toast('잘못된 파일', 'error'); }
+    reader.onload = async (ev) => {
+      try { await API.importData(ev.target.result); toast('가져오기 완료', 'success'); refreshAll(); }
+      catch (e) { toast(e.message || '잘못된 파일', 'error'); }
     };
     reader.readAsText(file);
     importFile.value = '';
@@ -2798,4 +2811,516 @@ function esc(str) {
 }
 
 function show(id) { document.getElementById(id).style.display = ''; }
-function hide(id) { document.getElementById(id).style.display = 'none'; }
+function hide(id) { document.getElementById(id).style.display = 'none'; }       
+
+// ========================
+// 회비 관리
+// ========================
+const MONTHLY_FEE = 30000; // 월회비 기본금액
+
+function initDues() {
+  // 년도 셀렉터
+  const yearSel = document.getElementById('dues-year');
+  const curYear = new Date().getFullYear();
+  yearSel.innerHTML = '';
+  for (let y = curYear; y >= curYear - 3; y--) {
+    yearSel.innerHTML += `<option value="${y}">${y}년</option>`;
+  }
+  yearSel.addEventListener('change', () => refreshDues());
+
+  // 저장 버튼
+  document.getElementById('btn-dues-save').addEventListener('click', saveDuesData);
+}
+
+async function refreshDues() {
+  const year = document.getElementById('dues-year').value;
+  const members = await API.getMembers();
+  const allDues = await API.getDues();
+  const yearData = allDues[year] || {};
+
+  const header = document.getElementById('dues-header');
+  const body = document.getElementById('dues-body');
+  const footer = document.getElementById('dues-footer');
+
+  // 헤더: 이름 | 1월~12월 | 연납 | 합계
+  header.innerHTML = '<th>이름</th>';
+  for (let m = 1; m <= 12; m++) header.innerHTML += `<th>${m}월</th>`;
+  header.innerHTML += '<th>연납</th><th>합계</th>';
+
+  // 바디: 회원별 행
+  body.innerHTML = '';
+  members.forEach(member => {
+    const md = yearData[member.name] || {};
+    const isAnnual = md.annual || false;
+    let tr = `<tr><td class="dues-name">${esc(member.name)}</td>`;
+    for (let m = 1; m <= 12; m++) {
+      const val = md[m] !== undefined ? md[m] : '';
+      const disabled = isAnnual ? 'disabled' : '';
+      tr += `<td><input type="number" class="dues-input" data-name="${esc(member.name)}" data-month="${m}" value="${val}" min="0" step="10000" ${disabled}></td>`;
+    }
+    tr += `<td style="text-align:center"><input type="checkbox" class="dues-annual" data-name="${esc(member.name)}" ${isAnnual ? 'checked' : ''}></td>`;
+    // 합계
+    let sum = 0;
+    if (isAnnual) {
+      sum = md.annualAmount || (MONTHLY_FEE * 12);
+    } else {
+      for (let m = 1; m <= 12; m++) sum += (md[m] || 0);
+    }
+    tr += `<td class="dues-sum" style="font-weight:bold;text-align:right">${sum > 0 ? sum.toLocaleString() : ''}</td>`;
+    tr += '</tr>';
+    body.innerHTML += tr;
+  });
+
+  // 연납 체크박스 이벤트
+  body.querySelectorAll('.dues-annual').forEach(cb => {
+    cb.addEventListener('change', function() {
+      const name = this.dataset.name;
+      const row = this.closest('tr');
+      const inputs = row.querySelectorAll('.dues-input');
+      if (this.checked) {
+        inputs.forEach(inp => {
+          inp.value = MONTHLY_FEE;
+          inp.disabled = true;
+        });
+      } else {
+        inputs.forEach(inp => inp.disabled = false);
+      }
+      updateDuesRowSum(row);
+    });
+  });
+
+  // 입력 변경 시 합계 업데이트
+  body.querySelectorAll('.dues-input').forEach(inp => {
+    inp.addEventListener('input', function() {
+      updateDuesRowSum(this.closest('tr'));
+    });
+  });
+
+  // 푸터: 월별 합계
+  footer.innerHTML = '<td style="font-weight:bold">합계</td>';
+  for (let m = 1; m <= 12; m++) {
+    let colSum = 0;
+    members.forEach(member => {
+      const md = yearData[member.name] || {};
+      if (md.annual) colSum += MONTHLY_FEE;
+      else colSum += (md[m] || 0);
+    });
+    footer.innerHTML += `<td style="text-align:right;font-weight:bold">${colSum > 0 ? colSum.toLocaleString() : ''}</td>`;
+  }
+  // 연납 칸 비우기 + 총합계
+  let totalSum = 0;
+  members.forEach(member => {
+    const md = yearData[member.name] || {};
+    if (md.annual) {
+      totalSum += md.annualAmount || (MONTHLY_FEE * 12);
+    } else {
+      for (let m = 1; m <= 12; m++) totalSum += (md[m] || 0);
+    }
+  });
+  footer.innerHTML += `<td></td><td style="font-weight:bold;text-align:right">${totalSum > 0 ? totalSum.toLocaleString() : ''}</td>`;
+}
+
+function updateDuesRowSum(row) {
+  const inputs = row.querySelectorAll('.dues-input');
+  const annualCb = row.querySelector('.dues-annual');
+  const sumCell = row.querySelector('.dues-sum');
+  let sum = 0;
+  if (annualCb && annualCb.checked) {
+    sum = MONTHLY_FEE * 12;
+  } else {
+    inputs.forEach(inp => { sum += (parseInt(inp.value) || 0); });
+  }
+  sumCell.textContent = sum > 0 ? sum.toLocaleString() : '';
+}
+
+async function saveDuesData() {
+  const year = document.getElementById('dues-year').value;
+  const allDues = await API.getDues();
+  const yearData = {};
+
+  document.querySelectorAll('#dues-body tr').forEach(row => {
+    const name = row.querySelector('.dues-input').dataset.name;
+    const annualCb = row.querySelector('.dues-annual');
+    const isAnnual = annualCb.checked;
+    const md = {};
+
+    if (isAnnual) {
+      md.annual = true;
+      md.annualAmount = MONTHLY_FEE * 12;
+      for (let m = 1; m <= 12; m++) md[m] = MONTHLY_FEE;
+    } else {
+      row.querySelectorAll('.dues-input').forEach(inp => {
+        const v = parseInt(inp.value) || 0;
+        if (v > 0) md[inp.dataset.month] = v;
+      });
+    }
+    if (Object.keys(md).length > 0) yearData[name] = md;
+  });
+
+  allDues[year] = yearData;
+  await API.saveDues(allDues);
+  alert('회비 데이터가 저장되었습니다.');
+  refreshDues();
+}
+
+// ========================
+// 게임비 관리 → 정산 관리
+// ========================
+
+// 기본 지출 항목
+const DEFAULT_EXPENSE_ITEMS = ['올파바 시상', '에버 상승상', '팁 전 지원'];
+
+function initSettlement() {
+  document.getElementById('btn-settle-load').addEventListener('click', loadSettlement);
+  document.getElementById('btn-settle-save').addEventListener('click', saveSettlement);
+  document.getElementById('btn-add-expense').addEventListener('click', addExpenseRow);
+  document.getElementById('settle-prev-balance').addEventListener('input', recalcSettleBalance);
+}
+
+async function refreshSettleDropdown() {
+  const sel = document.getElementById('settle-session');
+  const sessions = await API.getSessions();
+  sel.innerHTML = '<option value="">-- 모임 선택 --</option>';
+  sessions.forEach(ses => {
+    const label = sessionLabel(ses, sessions);
+    const dateStr = ses.date || '';
+    sel.innerHTML += `<option value="${ses.round}">${dateStr} ${label}</option>`;
+  });
+}
+
+async function loadSettlement() {
+  const round = parseInt(document.getElementById('settle-session').value);
+  if (!round) { alert('모임을 선택하세요.'); return; }
+
+  const sessions = await API.getSessions();
+  const ses = sessions.find(s => s.round === round);
+  if (!ses) return;
+
+  const settlements = await API.getSettlements();
+  const saved = settlements[round] || null;
+  const numGames = ses.numGames || (ses.type === '벙개' ? 4 : 3);
+  const gameFeeAmt = numGames === 3 ? 14000 : 18000;
+
+  // 게임비 헤더 업데이트
+  document.getElementById('th-gamefee').innerHTML = `게임비<br><small>${gameFeeAmt.toLocaleString()}</small>`;
+
+  // 기본 금액 정의
+  const AMOUNTS = {
+    monthly: 15000,
+    gamefee: gameFeeAmt,
+    gwangbak: 2000,
+    gutterfine: 2000,
+    avgpen: 0,
+    olcaba: 3000,
+    avgup: 3000
+  };
+
+  // 참가자 테이블 구성
+  const body = document.getElementById('settle-pbody');
+  body.innerHTML = '';
+  const participants = ses.scores || [];
+
+  participants.forEach((p, i) => {
+    const name = p.name;
+    const sp = saved ? (saved.participants || []).find(x => x.name === name) : null;
+
+    // 에버벌금 계산: 게임 평균 vs 기준에버
+    let avgPenAmt = 0;
+    const base = p.baseScore || 0;
+    const validGames = (p.games || []).filter(g => g !== null && g !== undefined && g !== 0);
+    if (base > 0 && validGames.length > 0) {
+      const avg = validGames.reduce((s, v) => s + v, 0) / validGames.length;
+      const diff = base - avg; // 양수면 에버보다 낮음
+      if (diff >= 20) avgPenAmt = 3000;
+      else if (diff > 0) avgPenAmt = 2000;
+    }
+
+    const ck = (field) => sp && sp[field] ? 'checked' : '';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${i + 1}</td>
+      <td class="settle-name">${esc(name)}</td>
+      <td style="text-align:center"><input type="checkbox" class="sp-cb sp-monthly" data-name="${esc(name)}" data-amt="${AMOUNTS.monthly}" ${ck('monthly')}></td>
+      <td style="text-align:center"><input type="checkbox" class="sp-cb sp-gamefee" data-name="${esc(name)}" data-amt="${AMOUNTS.gamefee}" ${ck('gamefee')}></td>
+      <td style="text-align:center"><input type="checkbox" class="sp-cb sp-gwangbak" data-name="${esc(name)}" data-amt="${AMOUNTS.gwangbak}" ${ck('gwangbak')}></td>
+      <td style="text-align:center"><input type="checkbox" class="sp-cb sp-gutterfine" data-name="${esc(name)}" data-amt="${AMOUNTS.gutterfine}" ${ck('gutterfine')}></td>
+      <td style="text-align:center">${avgPenAmt > 0 ? `<span class="avgpen-label">${avgPenAmt.toLocaleString()}</span><input type="checkbox" class="sp-cb sp-avgpen" data-name="${esc(name)}" data-amt="${avgPenAmt}" ${ck('avgpen')}>` : '-'}</td>
+      <td style="text-align:center"><input type="checkbox" class="sp-cb sp-olcaba" data-name="${esc(name)}" data-amt="${AMOUNTS.olcaba}" ${ck('olcaba')}></td>
+      <td style="text-align:center"><input type="checkbox" class="sp-cb sp-avgup" data-name="${esc(name)}" data-amt="${AMOUNTS.avgup}" ${ck('avgup')}></td>
+    `;
+    body.appendChild(tr);
+  });
+
+  // 체크박스에 recalc 이벤트 바인딩
+  body.querySelectorAll('.sp-cb').forEach(cb => {
+    cb.addEventListener('change', recalcSettleIncome);
+  });
+
+  // 지출: 게임 비용 행
+  const expBody = document.getElementById('settle-expense-body');
+  expBody.innerHTML = '';
+  if (saved && saved.gameExpenses && saved.gameExpenses.length) {
+    saved.gameExpenses.forEach(ge => addGameExpenseRow(ge.count, ge.games, ge.rate));
+  } else {
+    addGameExpenseRow(participants.length, numGames, 3500);
+  }
+
+  // 지출: 기타 항목
+  const oexpBody = document.getElementById('settle-oexp-body');
+  oexpBody.innerHTML = '';
+  if (saved && saved.otherExpenses && saved.otherExpenses.length) {
+    saved.otherExpenses.forEach(oe => addOtherExpenseRow(oe.label, oe.amount));
+  } else {
+    DEFAULT_EXPENSE_ITEMS.forEach(label => addOtherExpenseRow(label, 0));
+  }
+
+  // 수입: 추가 항목
+  document.getElementById('si-leftover').textContent = saved ? (saved.extraIncome?.leftover || 0).toLocaleString() : '0';
+
+  // 이전 잔액
+  document.getElementById('settle-prev-balance').value = saved ? (saved.previousBalance || 0) : 0;
+
+  // 수입 내역에 편집 가능하게 (남은돈)
+  makeEditable('si-leftover');
+
+  recalcSettleIncome();
+  recalcSettleExpense();
+}
+
+function makeEditable(id) {
+  const el = document.getElementById(id);
+  el.style.cursor = 'pointer';
+  el.title = '클릭하여 편집';
+  el.onclick = function() {
+    const cur = parseInt(this.textContent.replace(/,/g, '')) || 0;
+    const val = prompt('금액 입력:', cur);
+    if (val !== null) {
+      this.textContent = (parseInt(val) || 0).toLocaleString();
+      recalcSettleIncome();
+    }
+  };
+}
+
+function addGameExpenseRow(count, games, rate) {
+  const body = document.getElementById('settle-expense-body');
+  const tr = document.createElement('tr');
+  const total = count * games * rate;
+  tr.innerHTML = `
+    <td>
+      <input type="number" class="settle-input-sm ge-count" value="${count}" min="0" style="width:35px">명 x
+      <input type="number" class="settle-input-sm ge-games" value="${games}" min="0" style="width:35px">게임 =
+      <span class="ge-total-games">${count * games}</span>게임
+    </td>
+    <td class="amt">
+      <span class="ge-total-games2">${count * games}</span>x
+      <input type="number" class="settle-input-sm ge-rate" value="${rate}" min="0" step="100" style="width:50px"> =
+      <span class="ge-total">${total.toLocaleString()}</span>
+      <button class="btn-tiny btn-del-gerow" title="삭제">✕</button>
+    </td>
+  `;
+  body.appendChild(tr);
+
+  // 이벤트
+  tr.querySelectorAll('.settle-input-sm').forEach(inp => {
+    inp.addEventListener('input', () => {
+      const c = parseInt(tr.querySelector('.ge-count').value) || 0;
+      const g = parseInt(tr.querySelector('.ge-games').value) || 0;
+      const r = parseInt(tr.querySelector('.ge-rate').value) || 0;
+      tr.querySelector('.ge-total-games').textContent = c * g;
+      tr.querySelector('.ge-total-games2').textContent = c * g;
+      tr.querySelector('.ge-total').textContent = (c * g * r).toLocaleString();
+      recalcSettleExpense();
+    });
+  });
+  tr.querySelector('.btn-del-gerow').addEventListener('click', () => {
+    tr.remove();
+    recalcSettleExpense();
+  });
+
+  // 행 추가 버튼 (첫 행에만)
+  if (body.children.length === 1) {
+    const addBtn = document.createElement('tr');
+    addBtn.innerHTML = `<td colspan="2"><button class="btn btn-small" id="btn-add-gamerow">+ 게임비 행 추가</button></td>`;
+    body.appendChild(addBtn);
+    addBtn.querySelector('button').addEventListener('click', () => {
+      addBtn.remove();
+      addGameExpenseRow(0, games, rate);
+    });
+  }
+}
+
+function addOtherExpenseRow(label, amount) {
+  const body = document.getElementById('settle-oexp-body');
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><input type="text" class="settle-input oe-label" value="${esc(label)}" placeholder="항목명"></td>
+    <td class="amt">
+      <input type="number" class="settle-input oe-amount" value="${amount || ''}" min="0" step="1000">
+      <button class="btn-tiny btn-del-oerow" title="삭제">✕</button>
+    </td>
+  `;
+  body.appendChild(tr);
+  tr.querySelector('.oe-amount').addEventListener('input', recalcSettleExpense);
+  tr.querySelector('.btn-del-oerow').addEventListener('click', () => {
+    tr.remove();
+    recalcSettleExpense();
+  });
+}
+
+function addExpenseRow() {
+  addOtherExpenseRow('', 0);
+}
+
+function cbAmt(cb) { return cb && cb.checked ? (parseInt(cb.dataset.amt) || 0) : 0; }
+
+function recalcSettleIncome() {
+  let totalMonthly = 0, totalGameFee = 0, totalGwangbak = 0, totalGutterFine = 0, totalAvgPen = 0;
+  let totalOlcaba = 0, totalAvgUp = 0;
+
+  document.querySelectorAll('#settle-pbody tr').forEach(tr => {
+    totalMonthly += cbAmt(tr.querySelector('.sp-monthly'));
+    totalGameFee += cbAmt(tr.querySelector('.sp-gamefee'));
+    totalGwangbak += cbAmt(tr.querySelector('.sp-gwangbak'));
+    totalGutterFine += cbAmt(tr.querySelector('.sp-gutterfine'));
+    totalAvgPen += cbAmt(tr.querySelector('.sp-avgpen'));
+    totalOlcaba += cbAmt(tr.querySelector('.sp-olcaba'));
+    totalAvgUp += cbAmt(tr.querySelector('.sp-avgup'));
+  });
+
+  document.getElementById('si-monthly').textContent = totalMonthly.toLocaleString();
+  document.getElementById('si-gamefee').textContent = totalGameFee.toLocaleString();
+  document.getElementById('si-gwangbak').textContent = totalGwangbak.toLocaleString();
+  document.getElementById('si-gutterfine').textContent = totalGutterFine.toLocaleString();
+  document.getElementById('si-avgpen').textContent = totalAvgPen.toLocaleString();
+
+  const leftover = parseInt(document.getElementById('si-leftover').textContent.replace(/,/g, '')) || 0;
+
+  const total = totalMonthly + totalGameFee + totalGwangbak + totalGutterFine + totalAvgPen + leftover;
+  document.getElementById('si-total').textContent = total.toLocaleString();
+
+  // 올카바 + 에버상승은 지출 측에 반영
+  recalcSettleExpense();
+  recalcSettleBalance();
+}
+
+function recalcSettleExpense() {
+  let gameTotal = 0;
+  document.querySelectorAll('#settle-expense-body .ge-total').forEach(el => {
+    gameTotal += parseInt(el.textContent.replace(/,/g, '')) || 0;
+  });
+
+  let otherTotal = 0;
+  document.querySelectorAll('#settle-oexp-body .oe-amount').forEach(inp => {
+    otherTotal += parseInt(inp.value) || 0;
+  });
+
+  // 올카바 + 에버상승 (참가자 테이블의 지출 열)
+  let totalOlcaba = 0, totalAvgUp = 0;
+  document.querySelectorAll('#settle-pbody tr').forEach(tr => {
+    totalOlcaba += cbAmt(tr.querySelector('.sp-olcaba'));
+    totalAvgUp += cbAmt(tr.querySelector('.sp-avgup'));
+  });
+
+  const total = gameTotal + otherTotal + totalOlcaba + totalAvgUp;
+  document.getElementById('se-total').textContent = total.toLocaleString();
+
+  recalcSettleBalance();
+}
+
+function recalcSettleBalance() {
+  const income = parseInt(document.getElementById('si-total').textContent.replace(/,/g, '')) || 0;
+  const expense = parseInt(document.getElementById('se-total').textContent.replace(/,/g, '')) || 0;
+  const diff = income - expense;
+  const prevBalance = parseInt(document.getElementById('settle-prev-balance').value) || 0;
+  const finalBalance = prevBalance + diff;
+
+  document.getElementById('sb-income').textContent = income.toLocaleString();
+  document.getElementById('sb-expense').textContent = expense.toLocaleString();
+  const diffEl = document.getElementById('sb-diff');
+  diffEl.textContent = (diff < 0 ? '-' : '') + Math.abs(diff).toLocaleString();
+  diffEl.style.color = diff < 0 ? '#d32f2f' : '';
+
+  document.getElementById('sb-this').textContent = (diff < 0 ? '-' : '') + Math.abs(diff).toLocaleString();
+  document.getElementById('sb-this').style.color = diff < 0 ? '#d32f2f' : '';
+
+  const finalEl = document.getElementById('sb-final');
+  finalEl.textContent = finalBalance.toLocaleString();
+  finalEl.style.color = finalBalance < 0 ? '#d32f2f' : '#2e7d32';
+}
+
+async function saveSettlement() {
+  const round = parseInt(document.getElementById('settle-session').value);
+  if (!round) { alert('모임을 선택하세요.'); return; }
+
+  const participants = [];
+  document.querySelectorAll('#settle-pbody tr').forEach(tr => {
+    const name = tr.querySelector('.sp-monthly').dataset.name;
+    participants.push({
+      name,
+      monthly: tr.querySelector('.sp-monthly').checked,
+      gamefee: tr.querySelector('.sp-gamefee').checked,
+      gwangbak: tr.querySelector('.sp-gwangbak').checked,
+      gutterfine: tr.querySelector('.sp-gutterfine').checked,
+      avgpen: tr.querySelector('.sp-avgpen') ? tr.querySelector('.sp-avgpen').checked : false,
+      olcaba: tr.querySelector('.sp-olcaba').checked,
+      avgup: tr.querySelector('.sp-avgup').checked
+    });
+  });
+
+  const gameExpenses = [];
+  document.querySelectorAll('#settle-expense-body tr').forEach(tr => {
+    const countEl = tr.querySelector('.ge-count');
+    if (!countEl) return;
+    gameExpenses.push({
+      count: parseInt(countEl.value) || 0,
+      games: parseInt(tr.querySelector('.ge-games').value) || 0,
+      rate: parseInt(tr.querySelector('.ge-rate').value) || 0
+    });
+  });
+
+  const otherExpenses = [];
+  document.querySelectorAll('#settle-oexp-body tr').forEach(tr => {
+    otherExpenses.push({
+      label: tr.querySelector('.oe-label').value.trim(),
+      amount: parseInt(tr.querySelector('.oe-amount').value) || 0
+    });
+  });
+
+  const extraIncome = {
+    leftover: parseInt(document.getElementById('si-leftover').textContent.replace(/,/g, '')) || 0
+  };
+
+  const settlement = {
+    round,
+    participants,
+    gameExpenses,
+    otherExpenses,
+    extraIncome,
+    previousBalance: parseInt(document.getElementById('settle-prev-balance').value) || 0,
+    savedAt: new Date().toISOString()
+  };
+
+  const all = await API.getSettlements();
+  all[round] = settlement;
+  await API.saveSettlements(all);
+
+  // 월회비 체크 → 회비 납부현황에 반영
+  const sessions = await API.getSessions();
+  const ses = sessions.find(s => s.round === round);
+  if (ses && ses.date) {
+    const [y, m] = ses.date.split('-');
+    const year = y;
+    const month = parseInt(m);
+    const allDues = await API.getDues();
+    if (!allDues[year]) allDues[year] = {};
+    participants.forEach(p => {
+      if (!allDues[year][p.name]) allDues[year][p.name] = {};
+      if (p.monthly) {
+        allDues[year][p.name][month] = MONTHLY_FEE;
+      }
+    });
+    await API.saveDues(allDues);
+  }
+
+  alert('정산 데이터가 저장되었습니다.');
+}

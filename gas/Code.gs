@@ -3,9 +3,11 @@
  *
  * [설치 방법]
  * 1. Google Sheets 새 스프레드시트 생성
- * 2. 시트 이름: "회원목록", "세션목록"
+ * 2. 시트 이름: "회원목록", "세션목록", "회비", "정산"
  *    - 회원목록 1행: 이름 | 기준에버 | 가입일
  *    - 세션목록 1행: 회차 | 날짜 | 게임수 | 팀인원 | 팀구성(JSON) | 점수(JSON)
+ *    - 회비 1행: 연도 | 이름 | 1월~12월 | 연회비
+ *    - 정산 1행: 키 | 데이터(JSON)
  * 3. 확장 프로그램 > Apps Script > 이 코드 붙여넣기
  * 4. SPREADSHEET_ID를 본인 스프레드시트 ID로 교체
  * 5. 배포 > 새 배포 > 웹 앱
@@ -19,6 +21,8 @@ const SPREADSHEET_ID = 'YOUR_SPREADSHEET_ID_HERE';
 
 const SHEET_MEMBERS = '회원목록';
 const SHEET_SESSIONS = '세션목록';
+const SHEET_DUES = '회비';
+const SHEET_SETTLEMENTS = '정산';
 
 function doGet(e) {
   try {
@@ -27,6 +31,8 @@ function doGet(e) {
     switch (action) {
       case 'getMembers': return resp(getMembers(ss));
       case 'getSessions': return resp(getSessions(ss));
+      case 'getDues': return resp(getDues(ss));
+      case 'getSettlements': return resp(getSettlements(ss));
       default: return resp({ error: 'Unknown action: ' + action });
     }
   } catch (err) {
@@ -39,11 +45,13 @@ function doPost(e) {
     const data = JSON.parse(e.postData.contents);
     const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
     switch (data.action) {
-      case 'addMember': return resp(addMember(ss, data.name, data.baseScore));
+      case 'addMember': return resp(addMember(ss, data.name, data.baseScore, data.gender));
       case 'removeMember': return resp(removeMember(ss, data.name));
       case 'updateMember': return resp(updateMember(ss, data.name, data.updates));
       case 'saveSession': return resp(saveSession(ss, data.session));
       case 'deleteSession': return resp(deleteSession(ss, data.round));
+      case 'saveDues': return resp(saveDues(ss, data));
+      case 'saveSettlements': return resp(saveSettlements(ss, data));
       case 'importData': return resp(importData(ss, data));
       default: return resp({ error: 'Unknown action: ' + data.action });
     }
@@ -54,7 +62,7 @@ function doPost(e) {
 
 // ===== 회원 =====
 function getMembers(ss) {
-  const sheet = getOrCreateSheet(ss, SHEET_MEMBERS, ['이름', '기준에버', '가입일']);
+  const sheet = getOrCreateSheet(ss, SHEET_MEMBERS, ['이름', '기준에버', '가입일', '성별']);
   const data = sheet.getDataRange().getValues();
   const members = [];
   for (let i = 1; i < data.length; i++) {
@@ -62,7 +70,8 @@ function getMembers(ss) {
       members.push({
         name: String(data[i][0]).trim(),
         baseScore: Number(data[i][1]) || 0,
-        joinDate: fmtDate(data[i][2])
+        joinDate: fmtDate(data[i][2]),
+        gender: String(data[i][3] || 'M').trim()
       });
     }
   }
@@ -70,13 +79,13 @@ function getMembers(ss) {
   return { members };
 }
 
-function addMember(ss, name, baseScore) {
-  const sheet = getOrCreateSheet(ss, SHEET_MEMBERS, ['이름', '기준에버', '가입일']);
+function addMember(ss, name, baseScore, gender) {
+  const sheet = getOrCreateSheet(ss, SHEET_MEMBERS, ['이름', '기준에버', '가입일', '성별']);
   const data = sheet.getDataRange().getValues();
   for (let i = 1; i < data.length; i++) {
     if (String(data[i][0]).trim() === name) throw new Error('이미 존재하는 회원입니다.');
   }
-  sheet.appendRow([name, baseScore || 0, new Date()]);
+  sheet.appendRow([name, baseScore || 0, new Date(), gender || 'M']);
   return getMembers(ss);
 }
 
@@ -160,6 +169,70 @@ function deleteSession(ss, round) {
   return getSessions(ss);
 }
 
+// ===== 회비 =====
+function getDues(ss) {
+  const sheet = getOrCreateSheet(ss, SHEET_DUES, ['연도', '이름', '1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월', '연회비']);
+  const data = sheet.getDataRange().getValues();
+  const dues = {};
+  for (let i = 1; i < data.length; i++) {
+    const year = String(data[i][0]);
+    const name = String(data[i][1]).trim();
+    if (!year || !name) continue;
+    if (!dues[year]) dues[year] = {};
+    const months = {};
+    for (let m = 1; m <= 12; m++) {
+      if (data[i][m + 1]) months[m] = true;
+    }
+    const annual = !!data[i][14];
+    dues[year][name] = { months, annual };
+  }
+  return { dues };
+}
+
+function saveDues(ss, data) {
+  const sheet = getOrCreateSheet(ss, SHEET_DUES, ['연도', '이름', '1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월', '연회비']);
+  if (sheet.getLastRow() > 1) sheet.deleteRows(2, sheet.getLastRow() - 1);
+  const dues = data.dues || {};
+  Object.keys(dues).sort().forEach(year => {
+    const yearData = dues[year];
+    Object.keys(yearData).forEach(name => {
+      const d = yearData[name];
+      const row = [year, name];
+      for (let m = 1; m <= 12; m++) {
+        row.push(d.months && d.months[m] ? 1 : 0);
+      }
+      row.push(d.annual ? 1 : 0);
+      sheet.appendRow(row);
+    });
+  });
+  return getDues(ss);
+}
+
+// ===== 정산 =====
+function getSettlements(ss) {
+  const sheet = getOrCreateSheet(ss, SHEET_SETTLEMENTS, ['키', '데이터']);
+  const data = sheet.getDataRange().getValues();
+  const settlements = {};
+  for (let i = 1; i < data.length; i++) {
+    const key = String(data[i][0]).trim();
+    if (!key) continue;
+    try {
+      settlements[key] = JSON.parse(data[i][1]);
+    } catch (e) { /* skip bad rows */ }
+  }
+  return { settlements };
+}
+
+function saveSettlements(ss, data) {
+  const sheet = getOrCreateSheet(ss, SHEET_SETTLEMENTS, ['키', '데이터']);
+  if (sheet.getLastRow() > 1) sheet.deleteRows(2, sheet.getLastRow() - 1);
+  const settlements = data.settlements || {};
+  Object.keys(settlements).forEach(key => {
+    sheet.appendRow([key, JSON.stringify(settlements[key])]);
+  });
+  return getSettlements(ss);
+}
+
 // ===== 일괄 가져오기 =====
 function importData(ss, data) {
   if (data.members && data.members.length > 0) {
@@ -175,6 +248,12 @@ function importData(ss, data) {
     data.sessions.forEach(s => {
       sheet.appendRow([s.round, s.date, s.numGames, s.teamSize, JSON.stringify(s.teams), JSON.stringify(s.scores)]);
     });
+  }
+  if (data.dues) {
+    saveDues(ss, { dues: data.dues });
+  }
+  if (data.settlements) {
+    saveSettlements(ss, { settlements: data.settlements });
   }
   return { success: true };
 }

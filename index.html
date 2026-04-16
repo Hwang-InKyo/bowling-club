@@ -38,6 +38,8 @@
     <button class="tab-btn" data-tab="records">📊 기록</button>
     <button class="tab-btn" data-tab="stats">📈 통계</button>
     <button class="tab-btn" data-tab="ranking">🏆 랭킹</button>
+    <button class="tab-btn" data-tab="dues">💰 회비</button>
+    <button class="tab-btn" data-tab="settlement">📊 정산</button>
     <button class="tab-btn" data-tab="members">👥 회원</button>
   </nav>
 
@@ -309,11 +311,136 @@
       </div>
     </section>
 
+    <!-- 회비 관리 -->
+    <section id="tab-dues" class="tab-content">
+      <div class="card">
+        <h2>💰 월회비 납부 현황</h2>
+        <div class="filter-row" style="margin-bottom:12px;">
+          <div class="form-group">
+            <label for="dues-year">년도</label>
+            <select id="dues-year"></select>
+          </div>
+          <button class="btn btn-small" id="btn-dues-save">💾 저장</button>
+        </div>
+        <div class="table-scroll">
+          <table class="data-table" id="dues-table">
+            <thead><tr id="dues-header"></tr></thead>
+            <tbody id="dues-body"></tbody>
+            <tfoot><tr id="dues-footer"></tr></tfoot>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-settlement" class="tab-content">
+      <div class="card">
+        <h2>📊 모임별 정산</h2>
+        <div class="filter-row" style="margin-bottom:12px;gap:8px;flex-wrap:wrap;">
+          <div class="form-group">
+            <label for="settle-session">모임 선택</label>
+            <select id="settle-session"></select>
+          </div>
+          <button class="btn btn-small btn-primary" id="btn-settle-load">불러오기</button>
+          <button class="btn btn-small" id="btn-settle-save">💾 저장</button>
+        </div>
+      </div>
+
+      <!-- 참가자별 내역 -->
+      <div class="card">
+        <h3>참가자별 내역</h3>
+        <div class="table-scroll">
+          <table class="data-table" id="settle-ptable">
+            <thead>
+              <tr>
+                <th rowspan="2"></th>
+                <th rowspan="2">이름</th>
+                <th colspan="5" class="th-income">수입</th>
+                <th colspan="2" class="th-expense">지출</th>
+              </tr>
+              <tr>
+                <th>월회비<br><small>15,000</small></th>
+                <th id="th-gamefee">게임비<br><small>14,000</small></th>
+                <th>광박<br><small>2,000</small></th>
+                <th>가터벌금<br><small>2,000</small></th>
+                <th>에버벌금</th>
+                <th>올카바<br><small>3,000</small></th>
+                <th>에버상승<br><small>3,000</small></th>
+              </tr>
+            </thead>
+            <tbody id="settle-pbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 수입/지출 요약 -->
+      <div class="settle-grid">
+        <div class="card">
+          <h3 style="color:var(--primary)">수입 내역</h3>
+          <table class="settle-summary-table" id="settle-income-table">
+            <tbody>
+              <tr><td>월 회 비</td><td class="amt" id="si-monthly">0</td></tr>
+              <tr><td>게 임 비</td><td class="amt" id="si-gamefee">0</td></tr>
+              <tr><td>광 박</td><td class="amt" id="si-gwangbak">0</td></tr>
+              <tr><td>가터벌금</td><td class="amt" id="si-gutterfine">0</td></tr>
+              <tr><td>에버벌금</td><td class="amt" id="si-avgpen">0</td></tr>
+              <tr><td>남은돈</td><td class="amt" id="si-leftover">0</td></tr>
+            </tbody>
+            <tfoot>
+              <tr class="total-row"><td>합 계</td><td class="amt" id="si-total">0</td></tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <div class="card">
+          <h3 style="color:#d32f2f">지출 내역</h3>
+          <table class="settle-summary-table" id="settle-expense-table">
+            <thead><tr><th>게 임 수</th><th>게 임 비</th></tr></thead>
+            <tbody id="settle-expense-body">
+            </tbody>
+          </table>
+          <table class="settle-summary-table" id="settle-other-expense" style="margin-top:8px;">
+            <tbody id="settle-oexp-body"></tbody>
+            <tfoot>
+              <tr class="total-row"><td>합 계</td><td class="amt" id="se-total">0</td></tr>
+            </tfoot>
+          </table>
+          <button class="btn btn-small" id="btn-add-expense" style="margin-top:6px;">+ 지출 항목 추가</button>
+        </div>
+      </div>
+
+      <!-- 수입/지출 합산 & 잔액 -->
+      <div class="card">
+        <h3>수입 및 지출 내역</h3>
+        <table class="settle-summary-table">
+          <tbody>
+            <tr><td>수입 내역</td><td class="amt" id="sb-income">0</td></tr>
+            <tr><td>지출 내역</td><td class="amt" id="sb-expense">0</td></tr>
+            <tr class="total-row"><td>잔 액</td><td class="amt" id="sb-diff">0</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h3>잔액 현황</h3>
+        <table class="settle-summary-table">
+          <tbody>
+            <tr><td>이전 잔액</td><td class="amt"><input type="number" id="settle-prev-balance" class="settle-input" value="0"></td></tr>
+            <tr><td>이번 정산</td><td class="amt" id="sb-this">0</td></tr>
+            <tr class="total-row" style="background:#e8f5e9"><td>총 잔 액</td><td class="amt" id="sb-final">0</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
     <section id="tab-members" class="tab-content">
       <div class="card">
         <h2>회원 관리</h2>
         <form id="member-form" class="inline-form">
           <input type="text" id="new-member-name" placeholder="이름" required>
+          <select id="new-member-gender" style="width:60px;">
+            <option value="M">남</option>
+            <option value="F">여</option>
+          </select>
           <input type="number" id="new-member-base" placeholder="기준에버" min="0" max="300" style="width:90px;">
           <button type="submit" class="btn btn-primary btn-small">추가</button>
         </form>

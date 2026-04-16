@@ -6,7 +6,9 @@ const API = (() => {
   const KEYS = {
     members: 'bowling_members',
     sessions: 'bowling_sessions',
-    settings: 'bowling_settings'
+    settings: 'bowling_settings',
+    dues: 'bowling_dues',
+    settlements: 'bowling_settlements'
   };
 
   function getSettings() {
@@ -47,10 +49,10 @@ const API = (() => {
       return r ? JSON.parse(r) : [];
     },
     saveMembers(m) { localStorage.setItem(KEYS.members, JSON.stringify(m)); },
-    addMember(name, baseScore) {
+    addMember(name, baseScore, gender) {
       const members = this.getMembers();
       if (members.find(m => m.name === name)) throw new Error('이미 존재하는 회원입니다.');
-      members.push({ name, baseScore: baseScore || 0, joinDate: new Date().toISOString().slice(0, 10) });
+      members.push({ name, baseScore: baseScore || 0, gender: gender || 'M', joinDate: new Date().toISOString().slice(0, 10) });
       members.sort((a, b) => (b.baseScore || 0) - (a.baseScore || 0) || a.name.localeCompare(b.name, 'ko'));
       this.saveMembers(members);
       return members;
@@ -87,7 +89,17 @@ const API = (() => {
       sessions = sessions.filter(s => s.round !== round);
       this.saveSessions(sessions);
       return sessions;
-    }
+    },
+    getDues() {
+      const r = localStorage.getItem(KEYS.dues);
+      return r ? JSON.parse(r) : {};
+    },
+    saveDues(data) { localStorage.setItem(KEYS.dues, JSON.stringify(data)); },
+    getSettlements() {
+      const r = localStorage.getItem(KEYS.settlements);
+      return r ? JSON.parse(r) : {};
+    },
+    saveSettlements(data) { localStorage.setItem(KEYS.settlements, JSON.stringify(data)); }
   };
 
   // ===== 공개 API (자동으로 모드에 따라 로컬/GAS 분기) =====
@@ -100,9 +112,9 @@ const API = (() => {
       const r = await gasGet('getMembers');
       return r.members || [];
     },
-    async addMember(name, baseScore) {
-      if (isDemoMode()) return local.addMember(name, baseScore);
-      const r = await gasPost({ action: 'addMember', name, baseScore });
+    async addMember(name, baseScore, gender) {
+      if (isDemoMode()) return local.addMember(name, baseScore, gender);
+      const r = await gasPost({ action: 'addMember', name, baseScore, gender });
       return r.members || [];
     },
     async removeMember(name) {
@@ -135,20 +147,56 @@ const API = (() => {
       return JSON.stringify({
         members: local.getMembers(),
         sessions: local.getSessions(),
+        dues: local.getDues(),
+        settlements: local.getSettlements(),
         exportDate: new Date().toISOString()
       }, null, 2);
     },
-    importData(json) {
+    async importData(json) {
       const d = JSON.parse(json);
       if (d.members) local.saveMembers(d.members);
       if (d.sessions) local.saveSessions(d.sessions);
+      if (d.dues) local.saveDues(d.dues);
+      if (d.settlements) local.saveSettlements(d.settlements);
+      // 운영 모드면 GAS 서버에도 동기화
+      if (!isDemoMode()) {
+        await gasPost({ action: 'importData', members: d.members || [], sessions: d.sessions || [], dues: d.dues, settlements: d.settlements });
+      }
     },
     // GAS 서버로 전체 데이터 동기화 (로컬 → 서버)
     async syncToServer() {
       if (isDemoMode()) throw new Error('데모 모드에서는 동기화 불가');
       const members = local.getMembers();
       const sessions = local.getSessions();
-      await gasPost({ action: 'importData', members, sessions });
+      const dues = local.getDues();
+      const settlements = local.getSettlements();
+      await gasPost({ action: 'importData', members, sessions, dues, settlements });
+    },
+
+    // 회비 데이터
+    async getDues() {
+      if (isDemoMode()) return local.getDues();
+      const r = await gasGet('getDues');
+      return r.dues || {};
+    },
+    async saveDues(data) {
+      local.saveDues(data);
+      if (!isDemoMode()) {
+        await gasPost({ action: 'saveDues', dues: data });
+      }
+    },
+
+    // 정산 데이터
+    async getSettlements() {
+      if (isDemoMode()) return local.getSettlements();
+      const r = await gasGet('getSettlements');
+      return r.settlements || {};
+    },
+    async saveSettlements(data) {
+      local.saveSettlements(data);
+      if (!isDemoMode()) {
+        await gasPost({ action: 'saveSettlements', settlements: data });
+      }
     }
   };
 })();
