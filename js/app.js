@@ -340,14 +340,35 @@ function renderTournamentBracketInto(summaryEl, bracketEl, tournament) {
 
   bracketEl.innerHTML = `
     <div class="tournament-bracket">
-      ${tournament.rounds.map((round, roundIdx) => `
+      ${tournament.rounds.map((round, roundIdx) => {
+        const isFinal = roundIdx === tournament.rounds.length - 1;
+        // 최종라운드 players에 teamName이 없으면 이전 라운드에서 추출
+        if (isFinal) {
+          const teamNameMap = {};
+          tournament.rounds.forEach((r, ri) => {
+            if (ri >= roundIdx) return;
+            (r.matches || []).forEach(m => {
+              if (m.teamName && m.players) {
+                m.players.forEach(p => { if (p.name) teamNameMap[p.name] = m.teamName; });
+              }
+            });
+          });
+          (round.matches || []).forEach(m => {
+            if (m.players) {
+              m.players.forEach(p => {
+                if (!p.teamName && p.name && teamNameMap[p.name]) p.teamName = teamNameMap[p.name];
+              });
+            }
+          });
+        }
+        return `
         <div class="tournament-round">
           <h3>${round.title || round.label || (roundIdx + 1) + 'R'}</h3>
           <div class="tournament-round-matches">
-          ${round.matches.map(m => renderStaticMatchCard(m, roundIdx === tournament.rounds.length - 1)).join('')}
+          ${round.matches.map(m => renderStaticMatchCard(m, isFinal)).join('')}
           </div>
         </div>
-      `).join('')}
+      `}).join('')}
     </div>
   `;
 }
