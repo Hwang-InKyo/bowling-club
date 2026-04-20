@@ -1608,6 +1608,8 @@ async function loadSessionForScoring(round) {
       if (gi < session.numGames) {
         const el = document.getElementById(`p${idx}_g${gi}`);
         if (el) el.value = g || '';
+        const acEl = document.getElementById(`p${idx}_a${gi}`);
+        if (acEl && s.allcovers && s.allcovers[gi]) acEl.checked = true;
       }
     });
     recalcRow(idx, session.numGames);
@@ -2029,10 +2031,13 @@ async function saveCurrentSession(isAuto) {
   // 점수 수집
   const scores = currentSession.scores.map((p, idx) => {
     const games = [];
+    const allcovers = [];
     for (let g = 0; g < numGames; g++) {
       games.push(parseInt(document.getElementById(`p${idx}_g${g}`).value) || 0);
+      const acEl = document.getElementById(`p${idx}_a${g}`);
+      allcovers.push(acEl ? acEl.checked : false);
     }
-    return { name: p.name, baseScore: p.baseScore, team: p.team, games };
+    return { name: p.name, baseScore: p.baseScore, team: p.team, games, allcovers };
   });
 
   const session = {
@@ -2146,6 +2151,8 @@ async function loadSession(round) {
       if (gi < session.numGames) {
         const el = document.getElementById(`p${idx}_g${gi}`);
         if (el) el.value = g || '';
+        const acEl = document.getElementById(`p${idx}_a${gi}`);
+        if (acEl && s.allcovers && s.allcovers[gi]) acEl.checked = true;
       }
     });
     recalcRow(idx, session.numGames);
@@ -3392,7 +3399,7 @@ async function saveDuesData() {
 // ========================
 
 // 기본 지출 항목
-const DEFAULT_EXPENSE_ITEMS = ['올파바 시상', '에버 상승상', '팁 전 지원'];
+const DEFAULT_EXPENSE_ITEMS = ['올카바 시상', '에버 상승상', '팁 전 지원'];
 
 function initSettlement() {
   document.getElementById('btn-settle-load').addEventListener('click', loadSettlement);
@@ -3423,7 +3430,7 @@ async function loadSettlement() {
   const settlements = await API.getSettlements();
   const saved = settlements[round] || null;
   const numGames = ses.numGames || (ses.type === '벙개' ? 4 : 3);
-  const gameFeeAmt = numGames === 3 ? 14000 : 18000;
+  const gameFeeAmt = numGames * 4000;
 
   // 게임비 헤더 업데이트
   document.getElementById('th-gamefee').innerHTML = `게임비<br><small>${gameFeeAmt.toLocaleString()}</small>`;
@@ -3438,6 +3445,41 @@ async function loadSettlement() {
     olcaba: 3000,
     avgup: 3000
   };
+
+  // 회원 정보 로드 (성별 등)
+  const members = await API.getMembers();
+  const memberMap = {};
+  members.forEach(m => { memberMap[m.name] = m; });
+
+  // 올카바 자동 체크 대상: allcovers에 true가 있는 참가자
+  const olcabaNames = new Set();
+  (ses.scores || []).forEach(p => {
+    if (p.allcovers && p.allcovers.some(v => v)) olcabaNames.add(p.name);
+  });
+
+  // 에버상승 자격: 정모만, 남자 +20/여자 +10 이상
+  const isJungmo = getMeetingType(ses) === '정모';
+  const avgupEligible = new Set();
+  if (isJungmo) {
+    const candidates = {M: [], F: []};
+    (ses.scores || []).forEach(p => {
+      const base = p.baseScore || 0;
+      const validGames = (p.games || []).filter(g => g !== null && g !== undefined && g !== 0);
+      if (base > 0 && validGames.length > 0) {
+        const avg = validGames.reduce((s, v) => s + v, 0) / validGames.length;
+        const diff = avg - base;
+        const mem = memberMap[p.name];
+        const gender = mem ? mem.gender : 'M';
+        const threshold = gender === 'F' ? 10 : 20;
+        if (diff >= threshold) candidates[gender].push({name: p.name, diff});
+      }
+    });
+    // 각 성별 1명: 가장 높은 상승 폭
+    ['M', 'F'].forEach(g => {
+      candidates[g].sort((a, b) => b.diff - a.diff);
+      if (candidates[g].length > 0) avgupEligible.add(candidates[g][0].name);
+    });
+  }
 
   // 참가자 테이블 구성
   const body = document.getElementById('settle-pbody');
@@ -3469,8 +3511,8 @@ async function loadSettlement() {
       <td style="text-align:center"><input type="checkbox" class="sp-cb sp-gwangbak" data-name="${esc(name)}" data-amt="${AMOUNTS.gwangbak}" ${ck('gwangbak')}></td>
       <td style="text-align:center"><input type="checkbox" class="sp-cb sp-gutterfine" data-name="${esc(name)}" data-amt="${AMOUNTS.gutterfine}" ${ck('gutterfine')}></td>
       <td style="text-align:center">${avgPenAmt > 0 ? `<span class="avgpen-label">${avgPenAmt.toLocaleString()}</span><input type="checkbox" class="sp-cb sp-avgpen" data-name="${esc(name)}" data-amt="${avgPenAmt}" ${ck('avgpen')}>` : '-'}</td>
-      <td style="text-align:center"><input type="checkbox" class="sp-cb sp-olcaba" data-name="${esc(name)}" data-amt="${AMOUNTS.olcaba}" ${ck('olcaba')}></td>
-      <td style="text-align:center"><input type="checkbox" class="sp-cb sp-avgup" data-name="${esc(name)}" data-amt="${AMOUNTS.avgup}" ${ck('avgup')}></td>
+      <td style="text-align:center">${olcabaNames.has(name) ? `<input type="checkbox" class="sp-cb sp-olcaba" data-name="${esc(name)}" data-amt="${AMOUNTS.olcaba}" ${sp ? ck('olcaba') : 'checked'}>` : '-'}</td>
+      <td style="text-align:center">${avgupEligible.has(name) ? `<input type="checkbox" class="sp-cb sp-avgup" data-name="${esc(name)}" data-amt="${AMOUNTS.avgup}" ${sp ? ck('avgup') : 'checked'}>` : '-'}</td>
     `;
     body.appendChild(tr);
   });
@@ -3483,11 +3525,7 @@ async function loadSettlement() {
   // 지출: 게임 비용 행
   const expBody = document.getElementById('settle-expense-body');
   expBody.innerHTML = '';
-  if (saved && saved.gameExpenses && saved.gameExpenses.length) {
-    saved.gameExpenses.forEach(ge => addGameExpenseRow(ge.count, ge.games, ge.rate));
-  } else {
-    addGameExpenseRow(participants.length, numGames, 3500);
-  }
+  addGameExpenseRow(participants.length, numGames, 4000);
 
   // 지출: 기타 항목
   const oexpBody = document.getElementById('settle-oexp-body');
@@ -3531,46 +3569,17 @@ function addGameExpenseRow(count, games, rate) {
   const total = count * games * rate;
   tr.innerHTML = `
     <td>
-      <input type="number" class="settle-input-sm ge-count" value="${count}" min="0" style="width:35px">명 x
-      <input type="number" class="settle-input-sm ge-games" value="${games}" min="0" style="width:35px">게임 =
+      <span class="ge-count" data-val="${count}">${count}</span>명 x
+      <span class="ge-games" data-val="${games}">${games}</span>게임 =
       <span class="ge-total-games">${count * games}</span>게임
     </td>
     <td class="amt">
-      <span class="ge-total-games2">${count * games}</span>x
-      <input type="number" class="settle-input-sm ge-rate" value="${rate}" min="0" step="100" style="width:50px"> =
-      <span class="ge-total">${total.toLocaleString()}</span>
-      <button class="btn-tiny btn-del-gerow" title="삭제">✕</button>
+      <span class="ge-total-games2">${count * games}</span> x
+      <span class="ge-rate" data-val="${rate}">${rate.toLocaleString()}</span>원 =
+      <span class="ge-total">${total.toLocaleString()}</span>원
     </td>
   `;
   body.appendChild(tr);
-
-  // 이벤트
-  tr.querySelectorAll('.settle-input-sm').forEach(inp => {
-    inp.addEventListener('input', () => {
-      const c = parseInt(tr.querySelector('.ge-count').value) || 0;
-      const g = parseInt(tr.querySelector('.ge-games').value) || 0;
-      const r = parseInt(tr.querySelector('.ge-rate').value) || 0;
-      tr.querySelector('.ge-total-games').textContent = c * g;
-      tr.querySelector('.ge-total-games2').textContent = c * g;
-      tr.querySelector('.ge-total').textContent = (c * g * r).toLocaleString();
-      recalcSettleExpense();
-    });
-  });
-  tr.querySelector('.btn-del-gerow').addEventListener('click', () => {
-    tr.remove();
-    recalcSettleExpense();
-  });
-
-  // 행 추가 버튼 (첫 행에만)
-  if (body.children.length === 1) {
-    const addBtn = document.createElement('tr');
-    addBtn.innerHTML = `<td colspan="2"><button class="btn btn-small" id="btn-add-gamerow">+ 게임비 행 추가</button></td>`;
-    body.appendChild(addBtn);
-    addBtn.querySelector('button').addEventListener('click', () => {
-      addBtn.remove();
-      addGameExpenseRow(0, games, rate);
-    });
-  }
 }
 
 function addOtherExpenseRow(label, amount) {
@@ -3686,8 +3695,8 @@ async function saveSettlement() {
       gwangbak: tr.querySelector('.sp-gwangbak').checked,
       gutterfine: tr.querySelector('.sp-gutterfine').checked,
       avgpen: tr.querySelector('.sp-avgpen') ? tr.querySelector('.sp-avgpen').checked : false,
-      olcaba: tr.querySelector('.sp-olcaba').checked,
-      avgup: tr.querySelector('.sp-avgup').checked
+      olcaba: tr.querySelector('.sp-olcaba') ? tr.querySelector('.sp-olcaba').checked : false,
+      avgup: tr.querySelector('.sp-avgup') ? tr.querySelector('.sp-avgup').checked : false
     });
   });
 
@@ -3696,9 +3705,9 @@ async function saveSettlement() {
     const countEl = tr.querySelector('.ge-count');
     if (!countEl) return;
     gameExpenses.push({
-      count: parseInt(countEl.value) || 0,
-      games: parseInt(tr.querySelector('.ge-games').value) || 0,
-      rate: parseInt(tr.querySelector('.ge-rate').value) || 0
+      count: parseInt(countEl.dataset.val) || 0,
+      games: parseInt(tr.querySelector('.ge-games').dataset.val) || 0,
+      rate: parseInt(tr.querySelector('.ge-rate').dataset.val) || 0
     });
   });
 
