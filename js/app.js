@@ -2670,36 +2670,78 @@ function balanceTeams(players, teamSize) {
 function renderTeamSummaryReadonly(session, isTotalPin) {
   if (!session.teams || session.teams.length === 0) return '';
   if (isTotalPin === undefined) isTotalPin = (session.scoreType === 'totalpin');
+  const numGames = session.numGames;
 
-  return `<div style="margin-top:12px;">
-    <h3 style="font-size:0.9rem;color:var(--primary);margin-bottom:8px;">팀전 결과</h3>
-    ${session.teams.map((t, ti) => {
-      const teamPlayers = session.scores.filter(s => s.team === t.name);
-      const numGames = session.numGames;
+  // 팀 순위 계산
+  const teamsWithTotal = session.teams.map(t => {
+    const teamPlayers = session.scores.filter(s => s.team === t.name);
+    let total = 0;
+    teamPlayers.forEach(p => {
+      for (let g = 0; g < numGames; g++) {
+        total += isTotalPin ? (p.games[g] || 0) : ((p.games[g] || 0) - (p.baseScore || 0));
+      }
+    });
+    return { team: t, total };
+  });
+  teamsWithTotal.sort((a, b) => b.total - a.total);
 
-      const gSums = Array(numGames).fill(0);
-      teamPlayers.forEach(p => {
-        for (let g = 0; g < numGames; g++) {
-          if (isTotalPin) {
-            gSums[g] += (p.games[g] || 0);
-          } else {
-            gSums[g] += (p.games[g] || 0) - (p.baseScore || 0);
-          }
-        }
+  let html = '<div style="margin-top:12px;">';
+  html += '<h3 style="font-size:0.9rem;color:var(--primary);margin-bottom:8px;">팀전 결과</h3>';
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">';
+
+  teamsWithTotal.forEach(({ team: t }, rank) => {
+    const teamPlayers = session.scores.filter(s => s.team === t.name);
+    const gameSums = Array(numGames).fill(0);
+    let teamTotal = 0;
+
+    const playerRows = teamPlayers.map(p => {
+      const cells = [];
+      let pTotal = 0;
+      for (let g = 0; g < numGames; g++) {
+        const val = p.games[g] || 0;
+        const cellVal = isTotalPin ? val : (val - (p.baseScore || 0));
+        cells.push(cellVal);
+        gameSums[g] += cellVal;
+        pTotal += cellVal;
+      }
+      teamTotal += pTotal;
+      return { name: p.name, cells, pTotal };
+    });
+
+    const baseSum = isTotalPin ? '' : ' (에버합: ' + teamPlayers.reduce((s, p) => s + (p.baseScore || 0), 0) + ')';
+    const medal = rank === 0 ? '🥇 ' : rank === 1 ? '🥈 ' : rank === 2 ? '🥉 ' : (rank + 1) + '위 ';
+    html += '<div style="margin-bottom:10px;">';
+    html += '<h4 style="font-size:0.85rem;margin:8px 0 4px;">' + medal + esc(t.name) + baseSum + '</h4>';
+    html += '<div class="table-scroll"><table class="data-table"><thead><tr>';
+    html += '<th>이름</th>';
+    for (let g = 0; g < numGames; g++) html += '<th>' + (g + 1) + 'G</th>';
+    html += '<th>' + (isTotalPin ? '총핀' : '합계') + '</th>';
+    html += '</tr></thead><tbody>';
+
+    playerRows.forEach(pr => {
+      html += '<tr><td>' + esc(pr.name) + '</td>';
+      pr.cells.forEach(c => {
+        html += isTotalPin ? '<td>' + c + '</td>' : '<td class="' + (c >= 0 ? 'diff-positive' : 'diff-negative') + '">' + c + '</td>';
       });
-      const teamTotal = gSums.reduce((a, b) => a + b, 0);
+      html += isTotalPin
+        ? '<td><strong>' + pr.pTotal + '</strong></td>'
+        : '<td class="' + (pr.pTotal >= 0 ? 'diff-positive' : 'diff-negative') + '"><strong>' + pr.pTotal + '</strong></td>';
+      html += '</tr>';
+    });
 
-      return `<div style="margin-bottom:8px;padding:8px;background:var(--bg);border-radius:8px;">
-        <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
-          <strong>${t.name}</strong>
-          <span style="font-weight:700;" class="${isTotalPin ? '' : (teamTotal >= 0 ? 'diff-up' : 'diff-down')}">${isTotalPin ? teamTotal : (teamTotal >= 0 ? '+' : '') + teamTotal}</span>
-        </div>
-        <div style="font-size:0.78rem;color:var(--text-light);">
-          ${teamPlayers.map(p => esc(p.name)).join(', ')}
-        </div>
-      </div>`;
-    }).join('')}
-  </div>`;
+    teamTotal = gameSums.reduce((a, b) => a + b, 0);
+    html += '<tr style="background:var(--bg);font-weight:700;"><td>합계</td>';
+    for (let g = 0; g < numGames; g++) {
+      html += isTotalPin ? '<td>' + gameSums[g] + '</td>' : '<td class="' + (gameSums[g] >= 0 ? 'diff-positive' : 'diff-negative') + '">' + gameSums[g] + '</td>';
+    }
+    html += isTotalPin
+      ? '<td><strong>' + teamTotal + '</strong></td>'
+      : '<td class="' + (teamTotal >= 0 ? 'diff-positive' : 'diff-negative') + '"><strong>' + teamTotal + '</strong></td>';
+    html += '</tr></tbody></table></div></div>';
+  });
+
+  html += '</div></div>';
+  return html;
 }
 
 function sumGames(games, numGames) {
