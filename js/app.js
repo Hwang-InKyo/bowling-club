@@ -342,7 +342,7 @@ function renderTournamentBracketInto(summaryEl, bracketEl, tournament) {
     <div class="tournament-bracket">
       ${tournament.rounds.map((round, roundIdx) => `
         <div class="tournament-round">
-          <h3>${round.title}</h3>
+          <h3>${round.title || round.label || (roundIdx + 1) + 'R'}</h3>
           <div class="tournament-round-matches">
           ${round.matches.map(m => renderStaticMatchCard(m)).join('')}
           </div>
@@ -358,7 +358,7 @@ function renderStaticMatchCard(m) {
       <div class="tournament-match final-three">
         <div class="match-id">${m.id || m.label || m.teamName || ''}</div>
         ${m.players.map((p, i) => `
-          <div class="match-player">${i + 1}. ${formatStaticPlayer(p)}${p.score != null && p.baseScore != null ? ` <span class="player-base">${fmtDiff(p.score - p.baseScore)}</span>` : ''}</div>
+          <div class="match-player">${i + 1}. ${p.teamName ? '<strong>' + esc(p.teamName) + '</strong> · ' : ''}${formatStaticPlayer(p)}${p.score != null && p.baseScore != null ? ` <span class="player-base">${fmtDiff(p.score - p.baseScore)}</span>` : ''}</div>
         `).join('')}
       </div>
     `;
