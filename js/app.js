@@ -2603,15 +2603,8 @@ function drawCandleChart(points) {
     return;
   }
 
-  // Y축 범위
-  let yMin = Infinity, yMax = -Infinity;
-  points.forEach(p => {
-    if (p.min < yMin) yMin = p.min;
-    if (p.max > yMax) yMax = p.max;
-  });
-  const yPad = Math.max(10, Math.round((yMax - yMin) * 0.1));
-  yMin = Math.max(0, yMin - yPad);
-  yMax = yMax + yPad;
+  // Y축 범위 (120~300 고정)
+  let yMin = 120, yMax = 300;
 
   const drawAreaW = chartWidth - paddingLeft - paddingRight;
   const drawAreaH = chartHeight - paddingTop - paddingBottom;
