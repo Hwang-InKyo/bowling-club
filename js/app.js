@@ -178,6 +178,7 @@ async function refreshAll() {
 // ========================
 let savedTournaments = [];
 let viewingTournamentId = null;
+let cachedMemberNames = [];
 
 function initTournament() {
   const btnDelete = document.getElementById('btn-tournament-delete');
@@ -215,6 +216,12 @@ async function refreshTournament() {
 
   // 점수입력 탭 연동용
   renderTournament();
+
+  // 회원 목록 캐시
+  try {
+    const members = await API.getMembers();
+    cachedMemberNames = members.map(m => m.name);
+  } catch (e) { /* keep previous */ }
 
   // 종합 점수표
   await loadTournamentScores();
@@ -477,18 +484,21 @@ function renderTournamentScoreTable() {
   if (!el) return;
   const year = getScoreYear();
   const data = tournamentScoreData[year] || {};
-  const names = Object.keys(data);
+  // 모든 회원 + 점수 데이터에만 있는 이름 병합
+  const nameSet = new Set(cachedMemberNames);
+  Object.keys(data).forEach(n => nameSet.add(n));
+  const names = [...nameSet];
   const months = ['1','2','3','4','5','6','7','8','9','10','11','12'];
   const isAdmin = appRole === 'admin';
 
   // 합계 계산 및 정렬
   const rows = names.map(name => {
-    const m = data[name];
+    const m = data[name] || {};
     let total = 0;
     months.forEach(mo => { total += (m[mo] || 0); });
     return { name, months: m, total };
   });
-  rows.sort((a, b) => b.total - a.total);
+  rows.sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, 'ko'));
 
   if (rows.length === 0) {
     el.innerHTML = '<p style="color:var(--text-light);font-size:0.85rem;">점수 데이터가 없습니다. "자동 계산"을 눌러주세요.</p>';
