@@ -193,6 +193,7 @@ function saveDues(ss, data) {
   const sheet = getOrCreateSheet(ss, SHEET_DUES, ['연도', '이름', '1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월', '연회비']);
   if (sheet.getLastRow() > 1) sheet.deleteRows(2, sheet.getLastRow() - 1);
   const dues = data.dues || {};
+  const rows = [];
   Object.keys(dues).sort().forEach(year => {
     const yearData = dues[year];
     Object.keys(yearData).forEach(name => {
@@ -202,9 +203,10 @@ function saveDues(ss, data) {
         row.push(d.months && d.months[m] ? 1 : 0);
       }
       row.push(d.annual ? 1 : 0);
-      sheet.appendRow(row);
+      rows.push(row);
     });
   });
+  if (rows.length > 0) sheet.getRange(2, 1, rows.length, rows[0].length).setValues(rows);
   return getDues(ss);
 }
 
@@ -227,9 +229,8 @@ function saveSettlements(ss, data) {
   const sheet = getOrCreateSheet(ss, SHEET_SETTLEMENTS, ['키', '데이터']);
   if (sheet.getLastRow() > 1) sheet.deleteRows(2, sheet.getLastRow() - 1);
   const settlements = data.settlements || {};
-  Object.keys(settlements).forEach(key => {
-    sheet.appendRow([key, JSON.stringify(settlements[key])]);
-  });
+  const rows = Object.keys(settlements).map(key => [key, JSON.stringify(settlements[key])]);
+  if (rows.length > 0) sheet.getRange(2, 1, rows.length, 2).setValues(rows);
   return getSettlements(ss);
 }
 
@@ -238,16 +239,14 @@ function importData(ss, data) {
   if (data.members && data.members.length > 0) {
     const sheet = getOrCreateSheet(ss, SHEET_MEMBERS, ['이름', '기준에버', '가입일']);
     if (sheet.getLastRow() > 1) sheet.deleteRows(2, sheet.getLastRow() - 1);
-    data.members.forEach(m => {
-      sheet.appendRow([m.name, m.baseScore || 0, m.joinDate || new Date()]);
-    });
+    const rows = data.members.map(m => [m.name, m.baseScore || 0, m.joinDate || new Date()]);
+    if (rows.length > 0) sheet.getRange(2, 1, rows.length, 3).setValues(rows);
   }
   if (data.sessions && data.sessions.length > 0) {
     const sheet = getOrCreateSheet(ss, SHEET_SESSIONS, ['회차', '날짜', '게임수', '팀인원', '팀구성', '점수']);
     if (sheet.getLastRow() > 1) sheet.deleteRows(2, sheet.getLastRow() - 1);
-    data.sessions.forEach(s => {
-      sheet.appendRow([s.round, s.date, s.numGames, s.teamSize, JSON.stringify(s.teams), JSON.stringify(s.scores)]);
-    });
+    const rows = data.sessions.map(s => [s.round, s.date, s.numGames, s.teamSize, JSON.stringify(s.teams), JSON.stringify(s.scores)]);
+    if (rows.length > 0) sheet.getRange(2, 1, rows.length, 6).setValues(rows);
   }
   if (data.dues) {
     saveDues(ss, { dues: data.dues });

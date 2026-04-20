@@ -2110,34 +2110,61 @@ async function refreshStats() {
   // 날짜순 정렬 (오래된 순)
   const sorted = [...sessions].sort((a, b) => a.date.localeCompare(b.date));
 
-  // 시작 모임 인덱스
+  // "최신부터": 최신 세션 기준으로 기간만큼 역산, 특정 세션 선택: 해당 세션부터 기간만큼 순산
   let startIdx = 0;
+  let endIdx = sorted.length - 1;
+
   if (startRound) {
+    // 특정 세션 선택: 해당 세션부터 앞으로
     const idx = sorted.findIndex(s => s.round === startRound);
     if (idx >= 0) startIdx = idx;
-  }
 
-  // 시작 모임 날짜 기준으로 기간 종료일 계산
-  const startDate = sorted[startIdx] ? sorted[startIdx].date : sorted[0]?.date;
-  let endStr = null;
-  if (startDate && period !== 'all') {
-    const parts = startDate.split('-');
-    const sy = parseInt(parts[0]), sm = parseInt(parts[1]) - 1, sd = parseInt(parts[2]);
-    const toDateStr = (y, m, d) => {
-      const dt = new Date(y, m, d);
-      return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
-    };
-    if (period === '1m') endStr = toDateStr(sy, sm + 1, sd);
-    else if (period === '3m') endStr = toDateStr(sy, sm + 3, sd);
-    else if (period === '6m') endStr = toDateStr(sy, sm + 6, sd);
-    else if (period === '1y') endStr = toDateStr(sy + 1, sm, sd);
+    const startDate = sorted[startIdx].date;
+    if (period !== 'all') {
+      const parts = startDate.split('-');
+      const sy = parseInt(parts[0]), sm = parseInt(parts[1]) - 1, sd = parseInt(parts[2]);
+      const toDateStr = (y, m, d) => {
+        const dt = new Date(y, m, d);
+        return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+      };
+      let endStr = null;
+      if (period === '1m') endStr = toDateStr(sy, sm + 1, sd);
+      else if (period === '3m') endStr = toDateStr(sy, sm + 3, sd);
+      else if (period === '6m') endStr = toDateStr(sy, sm + 6, sd);
+      else if (period === '1y') endStr = toDateStr(sy + 1, sm, sd);
+      if (endStr) {
+        for (let i = sorted.length - 1; i >= startIdx; i--) {
+          if (sorted[i].date <= endStr) { endIdx = i; break; }
+        }
+      }
+    }
+  } else {
+    // 최신부터: 최신 세션 기준으로 뒤로
+    if (period !== 'all') {
+      const latestDate = sorted[sorted.length - 1].date;
+      const parts = latestDate.split('-');
+      const ly = parseInt(parts[0]), lm = parseInt(parts[1]) - 1, ld = parseInt(parts[2]);
+      const toDateStr = (y, m, d) => {
+        const dt = new Date(y, m, d);
+        return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+      };
+      let beginStr = null;
+      if (period === '1m') beginStr = toDateStr(ly, lm - 1, ld);
+      else if (period === '3m') beginStr = toDateStr(ly, lm - 3, ld);
+      else if (period === '6m') beginStr = toDateStr(ly, lm - 6, ld);
+      else if (period === '1y') beginStr = toDateStr(ly - 1, lm, ld);
+      if (beginStr) {
+        for (let i = 0; i < sorted.length; i++) {
+          if (sorted[i].date >= beginStr) { startIdx = i; break; }
+        }
+      }
+    }
   }
 
   // 기간 필터 + 데이터 포인트 생성
   const points = [];
   sorted.forEach((s, i) => {
-    if (i < startIdx) return;
-    if (endStr && s.date > endStr) return;
+    if (i < startIdx || i > endIdx) return;
     if (!s.scores || s.scores.length === 0) return;
 
     const targetScores = targetMember
@@ -2593,23 +2620,12 @@ window.removeMember = removeMember;
 function initSettings() {
   const toggle = document.getElementById('settings-toggle');
   const panel = document.getElementById('settings-panel');
-  const settings = API.getSettings();
-  document.getElementById('api-url').value = settings.apiUrl || '';
-  document.getElementById('demo-mode').checked = settings.demoMode;
 
   toggle.addEventListener('click', () => {
     panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
   });
-  document.getElementById('btn-save-settings').addEventListener('click', () => {
-    API.saveSettings({
-      apiUrl: document.getElementById('api-url').value,
-      demoMode: document.getElementById('demo-mode').checked
-    });
-    toast('설정 저장됨', 'success');
-    panel.style.display = 'none';
-  });
-  document.getElementById('btn-export').addEventListener('click', () => {
-    const data = API.exportData();
+  document.getElementById('btn-export').addEventListener('click', async () => {
+    const data = await API.exportData();
     const blob = new Blob([data], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
