@@ -3406,6 +3406,7 @@ function initSettlement() {
   document.getElementById('btn-settle-save').addEventListener('click', saveSettlement);
   document.getElementById('btn-add-expense').addEventListener('click', addExpenseRow);
   document.getElementById('settle-prev-balance').addEventListener('input', recalcSettleBalance);
+  document.getElementById('btn-settle-download').addEventListener('click', downloadSettleImage);
 }
 
 async function refreshSettleDropdown() {
@@ -3511,8 +3512,8 @@ async function loadSettlement() {
       <td style="text-align:center"><input type="checkbox" class="sp-cb sp-gwangbak" data-name="${esc(name)}" data-amt="${AMOUNTS.gwangbak}" ${ck('gwangbak')}></td>
       <td style="text-align:center"><input type="checkbox" class="sp-cb sp-gutterfine" data-name="${esc(name)}" data-amt="${AMOUNTS.gutterfine}" ${ck('gutterfine')}></td>
       <td style="text-align:center">${avgPenAmt > 0 ? `<span class="avgpen-label">${avgPenAmt.toLocaleString()}</span><input type="checkbox" class="sp-cb sp-avgpen" data-name="${esc(name)}" data-amt="${avgPenAmt}" ${ck('avgpen')}>` : '-'}</td>
-      <td style="text-align:center">${olcabaNames.has(name) ? `<input type="checkbox" class="sp-cb sp-olcaba" data-name="${esc(name)}" data-amt="${AMOUNTS.olcaba}" ${sp ? ck('olcaba') : 'checked'}>` : '-'}</td>
-      <td style="text-align:center">${avgupEligible.has(name) ? `<input type="checkbox" class="sp-cb sp-avgup" data-name="${esc(name)}" data-amt="${AMOUNTS.avgup}" ${sp ? ck('avgup') : 'checked'}>` : '-'}</td>
+      <td style="text-align:center">${olcabaNames.has(name) ? `<input type="checkbox" class="sp-cb sp-olcaba" data-name="${esc(name)}" data-amt="${AMOUNTS.olcaba}" ${ck('olcaba')}>` : '-'}</td>
+      <td style="text-align:center">${avgupEligible.has(name) ? `<input type="checkbox" class="sp-cb sp-avgup" data-name="${esc(name)}" data-amt="${AMOUNTS.avgup}" ${ck('avgup')}>` : '-'}</td>
     `;
     body.appendChild(tr);
   });
@@ -3679,6 +3680,25 @@ function recalcSettleBalance() {
   const finalEl = document.getElementById('sb-final');
   finalEl.textContent = finalBalance.toLocaleString();
   finalEl.style.color = finalBalance < 0 ? '#d32f2f' : '#2e7d32';
+}
+
+async function downloadSettleImage() {
+  const area = document.getElementById('settle-capture-area');
+  if (!area || !area.querySelector('#settle-pbody tr')) {
+    alert('정산 데이터를 먼저 불러오세요.');
+    return;
+  }
+  try {
+    const canvas = await html2canvas(area, { backgroundColor: '#ffffff', scale: 2 });
+    const link = document.createElement('a');
+    const sel = document.getElementById('settle-session');
+    const label = sel.options[sel.selectedIndex]?.text || '정산';
+    link.download = `정산_${label.replace(/\s+/g, '_')}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  } catch (err) {
+    alert('이미지 저장 실패: ' + err.message);
+  }
 }
 
 async function saveSettlement() {
