@@ -485,6 +485,48 @@ th.sortable:hover { background: rgba(232,101,45,0.08); }
   color: var(--text-light);
   font-weight: 500;
 }
+.tournament-chip-bye {
+  background: #fff3e0;
+  color: var(--accent);
+}
+.chip-remove {
+  background: none;
+  border: none;
+  color: var(--danger);
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0 2px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+.tournament-history {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.tournament-history-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  background: var(--bg);
+  border-radius: 8px;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  transition: background 0.15s;
+}
+.tournament-history-item:active {
+  background: #e8eef6;
+}
+.tournament-history-name {
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+.tournament-history-date {
+  font-size: 0.78rem;
+  color: var(--text-light);
+}
 .tournament-bracket {
   display: flex;
   flex-direction: column-reverse;

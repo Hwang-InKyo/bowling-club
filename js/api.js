@@ -8,7 +8,8 @@ const API = (() => {
     members: 'cache_members',
     sessions: 'cache_sessions',
     dues: 'cache_dues',
-    settlements: 'cache_settlements'
+    settlements: 'cache_settlements',
+    tournaments: 'cache_tournaments'
   };
 
   function cacheGet(key) {
@@ -126,6 +127,24 @@ const API = (() => {
     async saveSettlements(data) {
       await gasPost({ action: 'saveSettlements', settlements: data });
       cacheSet(CACHE_KEYS.settlements, data);
+    },
+
+    // 토너먼트 데이터
+    async getTournaments() {
+      const { data } = await cachedGet(CACHE_KEYS.tournaments, 'getTournaments', r => r.tournaments || [], []);
+      return data;
+    },
+    async saveTournament(tournament) {
+      const r = await gasPost({ action: 'saveTournament', tournament });
+      const tournaments = r.tournaments || [];
+      cacheSet(CACHE_KEYS.tournaments, tournaments);
+      return tournaments;
+    },
+    async deleteTournament(id) {
+      const r = await gasPost({ action: 'deleteTournament', id });
+      const tournaments = r.tournaments || [];
+      cacheSet(CACHE_KEYS.tournaments, tournaments);
+      return tournaments;
     }
   };
 })();

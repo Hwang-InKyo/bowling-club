@@ -23,6 +23,7 @@ const SHEET_MEMBERS = '회원목록';
 const SHEET_SESSIONS = '세션목록';
 const SHEET_DUES = '회비';
 const SHEET_SETTLEMENTS = '정산';
+const SHEET_TOURNAMENTS = '토너먼트목록';
 
 function doGet(e) {
   try {
@@ -33,6 +34,7 @@ function doGet(e) {
       case 'getSessions': return resp(getSessions(ss));
       case 'getDues': return resp(getDues(ss));
       case 'getSettlements': return resp(getSettlements(ss));
+      case 'getTournaments': return resp(getTournaments(ss));
       default: return resp({ error: 'Unknown action: ' + action });
     }
   } catch (err) {
@@ -53,6 +55,8 @@ function doPost(e) {
       case 'saveDues': return resp(saveDues(ss, data));
       case 'saveSettlements': return resp(saveSettlements(ss, data));
       case 'importData': return resp(importData(ss, data));
+      case 'saveTournament': return resp(saveTournament(ss, data.tournament));
+      case 'deleteTournament': return resp(deleteTournament(ss, data.id));
       default: return resp({ error: 'Unknown action: ' + data.action });
     }
   } catch (err) {
@@ -235,6 +239,53 @@ function saveSettlements(ss, data) {
   const rows = Object.keys(settlements).map(key => [key, JSON.stringify(settlements[key])]);
   if (rows.length > 0) sheet.getRange(2, 1, rows.length, 2).setValues(rows);
   return getSettlements(ss);
+}
+
+// ===== 토너먼트 =====
+function getTournaments(ss) {
+  const sheet = getOrCreateSheet(ss, SHEET_TOURNAMENTS, ['ID', '이름', '날짜', '데이터']);
+  const data = sheet.getDataRange().getValues();
+  const tournaments = [];
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0]) {
+      try {
+        const t = JSON.parse(data[i][3] || '{}');
+        t.id = String(data[i][0]).trim();
+        t.name = String(data[i][1]).trim();
+        t.date = fmtDate(data[i][2]);
+        tournaments.push(t);
+      } catch (e) { /* skip bad rows */ }
+    }
+  }
+  tournaments.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  return { tournaments };
+}
+
+function saveTournament(ss, tournament) {
+  const sheet = getOrCreateSheet(ss, SHEET_TOURNAMENTS, ['ID', '이름', '날짜', '데이터']);
+  const data = sheet.getDataRange().getValues();
+  const id = tournament.id;
+  const { id: _id, name: _name, date: _date, ...rest } = tournament;
+  const rowData = [id, tournament.name, tournament.date, JSON.stringify(rest)];
+
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim() === id) {
+      sheet.getRange(i + 1, 1, 1, 4).setValues([rowData]);
+      return getTournaments(ss);
+    }
+  }
+  sheet.appendRow(rowData);
+  return getTournaments(ss);
+}
+
+function deleteTournament(ss, id) {
+  const sheet = ss.getSheetByName(SHEET_TOURNAMENTS);
+  if (!sheet) return { tournaments: [] };
+  const data = sheet.getDataRange().getValues();
+  for (let i = data.length - 1; i >= 1; i--) {
+    if (String(data[i][0]).trim() === id) { sheet.deleteRow(i + 1); break; }
+  }
+  return getTournaments(ss);
 }
 
 // ===== 일괄 가져오기 =====
