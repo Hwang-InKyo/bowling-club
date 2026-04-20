@@ -349,7 +349,7 @@ function renderStaticMatchCard(m) {
       <div class="tournament-match final-three">
         <div class="match-id">${m.id}</div>
         ${m.players.map((p, i) => `
-          <div class="match-player">${i + 1}. ${formatStaticPlayer(p)}${p.score != null ? ` <span class="player-base">${p.score}점</span>` : ''}</div>
+          <div class="match-player">${i + 1}. ${formatStaticPlayer(p)}${p.score != null && p.baseScore != null ? ` <span class="player-base">${fmtDiff(p.score - p.baseScore)}</span>` : ''}</div>
         `).join('')}
       </div>
     `;
@@ -365,14 +365,14 @@ function renderStaticMatchCard(m) {
     `;
   }
   const winnerMark = m.winner ? ` <span style="font-size:0.7rem;color:var(--success);">👑 ${esc(m.winner)}</span>` : '';
-  const scoreA = m.scoreA != null ? ` <span class="player-base">${m.scoreA}</span>` : '';
-  const scoreB = m.scoreB != null ? ` <span class="player-base">${m.scoreB}</span>` : '';
+  const diffA = m.scoreA != null && m.a && m.a.baseScore != null ? fmtDiff(m.scoreA - m.a.baseScore) : '';
+  const diffB = m.scoreB != null && m.b && m.b.baseScore != null ? fmtDiff(m.scoreB - m.b.baseScore) : '';
   return `
     <div class="tournament-match">
       <div class="match-id">${m.id}${winnerMark}</div>
-      <div class="match-player">${formatStaticPlayer(m.a)}${scoreA}</div>
+      <div class="match-player">${formatStaticPlayer(m.a)}${diffA}</div>
       <div class="match-vs">VS</div>
-      <div class="match-player">${formatStaticPlayer(m.b)}${scoreB}</div>
+      <div class="match-player">${formatStaticPlayer(m.b)}${diffB}</div>
     </div>
   `;
 }
@@ -3003,6 +3003,12 @@ function esc(str) {
   const d = document.createElement('div');
   d.textContent = str;
   return d.innerHTML;
+}
+
+function fmtDiff(d) {
+  const sign = d >= 0 ? '+' : '';
+  const color = d >= 0 ? 'var(--success)' : 'var(--danger)';
+  return ` <span style="font-weight:bold;color:${color};">${sign}${d}</span>`;
 }
 
 function show(id) { document.getElementById(id).style.display = ''; }
