@@ -219,9 +219,13 @@ function initTournament() {
 async function refreshTournament() {
   // 회원 목록으로 셀렉트 채우기
   const members = await API.getMembers();
+  const curQKey = getCurrentQuarterKey();
   const sel = document.getElementById('tournament-member-select');
   if (sel) {
-    sel.innerHTML = members.map(m => `<option value="${esc(m.name)}" data-base="${m.baseScore}">${esc(m.name)} (${m.baseScore})</option>`).join('');
+    sel.innerHTML = members.map(m => {
+      const base = getMemberBaseForQuarter(m, curQKey);
+      return `<option value="${esc(m.name)}" data-base="${base}">${esc(m.name)} (${base})</option>`;
+    }).join('');
   }
   // 히스토리 로딩
   try {

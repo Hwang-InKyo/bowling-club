@@ -4,7 +4,7 @@
  * [설치 방법]
  * 1. Google Sheets 새 스프레드시트 생성
  * 2. 시트 이름: "회원목록", "세션목록", "회비", "정산"
- *    - 회원목록 1행: 이름 | 기준에버 | 가입일
+ *    - 회원목록 1행: 이름 | 기준에버 | 가입일 | 성별 | 분기별에버(JSON)
  *    - 세션목록 1행: 회차 | 날짜 | 게임수 | 팀인원 | 팀구성(JSON) | 점수(JSON)
  *    - 회비 1행: 연도 | 이름 | 1월~12월 | 연회비
  *    - 정산 1행: 키 | 데이터(JSON)
@@ -66,17 +66,19 @@ function doPost(e) {
 
 // ===== 회원 =====
 function getMembers(ss) {
-  const sheet = getOrCreateSheet(ss, SHEET_MEMBERS, ['이름', '기준에버', '가입일', '성별']);
+  const sheet = getOrCreateSheet(ss, SHEET_MEMBERS, ['이름', '기준에버', '가입일', '성별', '분기별에버']);
   const data = sheet.getDataRange().getValues();
   const members = [];
   for (let i = 1; i < data.length; i++) {
     if (data[i][0]) {
-      members.push({
+      const m = {
         name: String(data[i][0]).trim(),
         baseScore: Number(data[i][1]) || 0,
         joinDate: fmtDate(data[i][2]),
         gender: String(data[i][3] || 'M').trim()
-      });
+      };
+      try { m.baseScores = JSON.parse(data[i][4] || '{}'); } catch (e) { m.baseScores = {}; }
+      members.push(m);
     }
   }
   members.sort((a, b) => b.baseScore - a.baseScore || a.name.localeCompare(b.name, 'ko'));
@@ -84,12 +86,12 @@ function getMembers(ss) {
 }
 
 function addMember(ss, name, baseScore, gender) {
-  const sheet = getOrCreateSheet(ss, SHEET_MEMBERS, ['이름', '기준에버', '가입일', '성별']);
+  const sheet = getOrCreateSheet(ss, SHEET_MEMBERS, ['이름', '기준에버', '가입일', '성별', '분기별에버']);
   const data = sheet.getDataRange().getValues();
   for (let i = 1; i < data.length; i++) {
     if (String(data[i][0]).trim() === name) throw new Error('이미 존재하는 회원입니다.');
   }
-  sheet.appendRow([name, baseScore || 0, new Date(), gender || 'M']);
+  sheet.appendRow([name, baseScore || 0, new Date(), gender || 'M', '{}']);
   return getMembers(ss);
 }
 
@@ -110,6 +112,13 @@ function updateMember(ss, name, updates) {
   for (let i = 1; i < data.length; i++) {
     if (String(data[i][0]).trim() === name) {
       if (updates.baseScore !== undefined) sheet.getRange(i + 1, 2).setValue(Number(updates.baseScore));
+      if (updates.baseScores !== undefined) {
+        // Ensure column 5 exists
+        if (sheet.getLastColumn() < 5) {
+          sheet.getRange(1, 5).setValue('분기별에버');
+        }
+        sheet.getRange(i + 1, 5).setValue(JSON.stringify(updates.baseScores));
+      }
       break;
     }
   }
@@ -291,10 +300,10 @@ function deleteTournament(ss, id) {
 // ===== 일괄 가져오기 =====
 function importData(ss, data) {
   if (data.members && data.members.length > 0) {
-    const sheet = getOrCreateSheet(ss, SHEET_MEMBERS, ['이름', '기준에버', '가입일']);
+    const sheet = getOrCreateSheet(ss, SHEET_MEMBERS, ['이름', '기준에버', '가입일', '성별', '분기별에버']);
     if (sheet.getLastRow() > 1) sheet.deleteRows(2, sheet.getLastRow() - 1);
-    const rows = data.members.map(m => [m.name, m.baseScore || 0, m.joinDate || new Date()]);
-    if (rows.length > 0) sheet.getRange(2, 1, rows.length, 3).setValues(rows);
+    const rows = data.members.map(m => [m.name, m.baseScore || 0, m.joinDate || new Date(), m.gender || 'M', JSON.stringify(m.baseScores || {})]);
+    if (rows.length > 0) sheet.getRange(2, 1, rows.length, 5).setValues(rows);
   }
   if (data.sessions && data.sessions.length > 0) {
     const sheet = getOrCreateSheet(ss, SHEET_SESSIONS, ['회차', '날짜', '게임수', '팀인원', '팀구성', '점수', '점수유형']);
