@@ -2726,6 +2726,8 @@ function drawCandleChart(points) {
 // ========================
 async function refreshRanking() {
   const sessions = await API.getSessions();
+  const members = await API.getMembers();
+  const memberNameSet = new Set(members.map(m => m.name));
   const period = document.getElementById('rank-period').value;
 
   let filtered = sessions;
@@ -2739,7 +2741,7 @@ async function refreshRanking() {
   // 에버 랭킹
   const memberStats = {};
   filtered.forEach(ses => {
-    ses.scores.forEach(s => {
+    ses.scores.filter(s => memberNameSet.has(s.name)).forEach(s => {
       if (!memberStats[s.name]) memberStats[s.name] = { totalScore: 0, totalGames: 0, sessions: 0 };
       const ms = memberStats[s.name];
       ms.totalScore += sumGames(s.games, ses.numGames);
@@ -2759,7 +2761,7 @@ async function refreshRanking() {
   // 하이스코어
   const gameRecords = [];
   filtered.forEach(ses => {
-    ses.scores.forEach(s => {
+    ses.scores.filter(s => memberNameSet.has(s.name)).forEach(s => {
       s.games.forEach((g, i) => {
         if (i < ses.numGames && g > 0) {
           gameRecords.push({ member: s.name, score: g, round: ses.round, game: `${i + 1}G`, label: sessionLabel(ses, sessions) });
