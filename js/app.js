@@ -126,7 +126,7 @@ function applyRole() {
     if (duesTab) duesTab.style.display = 'none';
     if (settleTab) settleTab.style.display = 'none';
     if (settingsToggle) settingsToggle.style.display = 'none';
-    // tournament-create-card removed (creation is now via session flow)
+    document.querySelectorAll('.tournament-admin-only').forEach(el => el.style.display = 'none');
   } else {
     if (sessionTab) sessionTab.style.display = '';
     if (scoringTab) scoringTab.style.display = '';
@@ -134,6 +134,7 @@ function applyRole() {
     if (duesTab) duesTab.style.display = '';
     if (settleTab) settleTab.style.display = '';
     if (settingsToggle) settingsToggle.style.display = '';
+    document.querySelectorAll('.tournament-admin-only').forEach(el => el.style.display = '');
   }
 }
 

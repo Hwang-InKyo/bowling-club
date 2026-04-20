@@ -221,7 +221,7 @@
         <div id="tournament-detail-summary"></div>
         <div id="tournament-detail-bracket"></div>
         <div style="display:flex;gap:8px;margin-top:10px;">
-          <button class="btn btn-danger btn-small" id="btn-tournament-delete">삭제</button>
+          <button class="btn btn-danger btn-small tournament-admin-only" id="btn-tournament-delete">삭제</button>
           <button class="btn btn-small" id="btn-tournament-detail-close" style="background:var(--text-light);color:white;">닫기</button>
         </div>
       </div>
@@ -233,8 +233,8 @@
             <label for="tournament-score-year">연도</label>
             <select id="tournament-score-year" onchange="renderTournamentScoreTable()"></select>
           </div>
-          <button class="btn btn-small" onclick="calcTournamentScoresFromData()" style="margin-left:auto;">자동 계산</button>
-          <button class="btn btn-small btn-primary" onclick="saveTournamentScores()">저장</button>
+          <button class="btn btn-small tournament-admin-only" onclick="calcTournamentScoresFromData()" style="margin-left:auto;">자동 계산</button>
+          <button class="btn btn-small btn-primary tournament-admin-only" onclick="saveTournamentScores()">저장</button>
         </div>
         <div id="tournament-score-table" class="table-scroll"></div>
       </div>
