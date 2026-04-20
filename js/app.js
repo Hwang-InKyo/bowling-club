@@ -578,14 +578,26 @@ function calcTournamentPointsFromTournament(t) {
 
 async function calcTournamentScoresFromData() {
   const year = getScoreYear();
-  // 자동 계산 시 기존 데이터 초기화 후 재계산
-  const data = {};
+  // 기존 저장 데이터 보존 (수동 입력 포함)
+  const data = tournamentScoreData[year] ? JSON.parse(JSON.stringify(tournamentScoreData[year])) : {};
 
   // 해당 연도의 토너먼트들만 필터
   const yearTournaments = savedTournaments.filter(t => t.date && t.date.startsWith(year));
 
+  // 토너먼트 데이터가 있는 월만 찾아서 해당 월만 리셋
+  const monthsWithData = new Set();
   yearTournaments.forEach(t => {
-    const month = String(parseInt(t.date.substring(5, 7), 10)); // "01" -> "1"
+    monthsWithData.add(String(parseInt(t.date.substring(5, 7), 10)));
+  });
+
+  // 해당 월의 기존 점수만 초기화
+  Object.keys(data).forEach(name => {
+    monthsWithData.forEach(mo => { data[name][mo] = 0; });
+  });
+
+  // 재계산
+  yearTournaments.forEach(t => {
+    const month = String(parseInt(t.date.substring(5, 7), 10));
     const points = calcTournamentPointsFromTournament(t);
 
     Object.keys(points).forEach(name => {
