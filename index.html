@@ -205,44 +205,10 @@
 
     <!-- 토너먼트 -->
     <section id="tab-tournament" class="tab-content">
-      <div class="card" id="tournament-create-card">
-        <h2>토너먼트 생성</h2>
-        <p style="font-size:0.85rem;color:var(--text-light);margin-bottom:10px;">
-          참가자를 추가하고 부전승을 지정한 뒤 대진표를 생성하세요.
-        </p>
-        <div class="form-group">
-          <label for="tournament-name-input">토너먼트 이름</label>
-          <input type="text" id="tournament-name-input" placeholder="예: 벙개 1회 토너먼트">
-        </div>
-        <div class="form-group">
-          <label for="tournament-date-input">날짜</label>
-          <input type="date" id="tournament-date-input">
-        </div>
-        <div class="form-group">
-          <label>참가자 추가</label>
-          <div style="display:flex;gap:6px;margin-bottom:6px;">
-            <select id="tournament-member-select" style="flex:1;"></select>
-            <label style="display:flex;align-items:center;gap:4px;font-size:0.8rem;white-space:nowrap;">
-              <input type="checkbox" id="tournament-bye-check"> 1차전 부전승
-            </label>
-            <button class="btn btn-primary btn-small" id="btn-tournament-add-player">추가</button>
-          </div>
-        </div>
-        <div id="tournament-player-list" style="margin-bottom:10px;"></div>
-        <div style="display:flex;gap:8px;">
-          <button class="btn btn-primary" id="btn-tournament-generate" disabled>대진표 생성</button>
-          <button class="btn" id="btn-tournament-clear-players" style="background:var(--text-light);color:white;">초기화</button>
-        </div>
-      </div>
-
-      <div class="card" id="tournament-preview-card" style="display:none;">
-        <h2 id="tournament-preview-title">대진표 미리보기</h2>
-        <div id="tournament-summary"></div>
-        <div id="tournament-bracket"></div>
-        <div style="display:flex;gap:8px;margin-top:10px;">
-          <button class="btn btn-primary" id="btn-tournament-save">저장</button>
-          <button class="btn" id="btn-tournament-back" style="background:var(--text-light);color:white;">뒤로</button>
-        </div>
+      <div class="card" id="tournament-current-card" style="display:none;">
+        <h2 id="tournament-current-title">진행중인 토너먼트</h2>
+        <div id="tournament-current-summary"></div>
+        <div id="tournament-current-bracket"></div>
       </div>
 
       <div class="card">

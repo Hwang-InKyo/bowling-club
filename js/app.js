@@ -126,8 +126,7 @@ function applyRole() {
     if (duesTab) duesTab.style.display = 'none';
     if (settleTab) settleTab.style.display = 'none';
     if (settingsToggle) settingsToggle.style.display = 'none';
-    const tcCard = document.getElementById('tournament-create-card');
-    if (tcCard) tcCard.style.display = 'none';
+    // tournament-create-card removed (creation is now via session flow)
   } else {
     if (sessionTab) sessionTab.style.display = '';
     if (scoringTab) scoringTab.style.display = '';
@@ -177,56 +176,37 @@ async function refreshAll() {
 // ========================
 // 토너먼트
 // ========================
-let tournamentPlayers = []; // [{name, baseScore, bye}]
 let savedTournaments = [];
 let viewingTournamentId = null;
 
 function initTournament() {
-  const btnAdd = document.getElementById('btn-tournament-add-player');
-  const btnGenerate = document.getElementById('btn-tournament-generate');
-  const btnClearPlayers = document.getElementById('btn-tournament-clear-players');
-  const btnSave = document.getElementById('btn-tournament-save');
-  const btnBack = document.getElementById('btn-tournament-back');
   const btnDelete = document.getElementById('btn-tournament-delete');
   const btnDetailClose = document.getElementById('btn-tournament-detail-close');
-  if (!btnAdd) return;
-
-  btnAdd.addEventListener('click', addTournamentPlayer);
-  btnGenerate.addEventListener('click', generateTournamentFromList);
-  btnClearPlayers.addEventListener('click', () => {
-    tournamentPlayers = [];
-    renderTournamentPlayerList();
-    updateTournamentGenerateBtn();
-    document.getElementById('tournament-preview-card').style.display = 'none';
-    currentTournament = null;
-  });
-  btnSave.addEventListener('click', saveTournamentToServer);
-  btnBack.addEventListener('click', () => {
-    document.getElementById('tournament-preview-card').style.display = 'none';
-    document.getElementById('tournament-create-card').style.display = '';
-    currentTournament = null;
-  });
-  btnDelete.addEventListener('click', deleteViewingTournament);
-  btnDetailClose.addEventListener('click', () => {
+  if (btnDelete) btnDelete.addEventListener('click', deleteViewingTournament);
+  if (btnDetailClose) btnDetailClose.addEventListener('click', () => {
     document.getElementById('tournament-detail-card').style.display = 'none';
     viewingTournamentId = null;
   });
-
-  // 날짜 기본값
-  document.getElementById('tournament-date-input').value = todayStr();
 }
 
 async function refreshTournament() {
-  // 회원 목록으로 셀렉트 채우기
-  const members = await API.getMembers();
-  const curQKey = getCurrentQuarterKey();
-  const sel = document.getElementById('tournament-member-select');
-  if (sel) {
-    sel.innerHTML = members.map(m => {
-      const base = getMemberBaseForQuarter(m, curQKey);
-      return `<option value="${esc(m.name)}" data-base="${base}">${esc(m.name)} (${base})</option>`;
-    }).join('');
+  // 현재 진행중인 토너먼트 표시
+  const currentCard = document.getElementById('tournament-current-card');
+  if (currentCard) {
+    if (currentTournament) {
+      currentCard.style.display = '';
+      const titleEl = document.getElementById('tournament-current-title');
+      if (titleEl) titleEl.textContent = currentTournament.tournamentName || '진행중인 토너먼트';
+      renderTournamentBracketInto(
+        document.getElementById('tournament-current-summary'),
+        document.getElementById('tournament-current-bracket'),
+        currentTournament
+      );
+    } else {
+      currentCard.style.display = 'none';
+    }
   }
+
   // 히스토리 로딩
   try {
     savedTournaments = await API.getTournaments();
@@ -237,72 +217,7 @@ async function refreshTournament() {
   renderTournament();
 }
 
-function addTournamentPlayer() {
-  const sel = document.getElementById('tournament-member-select');
-  const byeCheck = document.getElementById('tournament-bye-check');
-  const name = sel.value;
-  if (!name) return;
-  if (tournamentPlayers.some(p => p.name === name)) {
-    toast('이미 추가된 참가자입니다', 'error');
-    return;
-  }
-  const opt = sel.selectedOptions[0];
-  const baseScore = Number(opt.dataset.base) || 0;
-  tournamentPlayers.push({ name, baseScore, bye: byeCheck.checked });
-  byeCheck.checked = false;
-  renderTournamentPlayerList();
-  updateTournamentGenerateBtn();
-}
 
-function renderTournamentPlayerList() {
-  const el = document.getElementById('tournament-player-list');
-  if (!el) return;
-  if (tournamentPlayers.length === 0) {
-    el.innerHTML = '<p style="color:var(--text-light);font-size:0.82rem;">참가자를 추가하세요</p>';
-    return;
-  }
-  const byeCount = tournamentPlayers.filter(p => p.bye).length;
-  el.innerHTML = `
-    <p style="font-size:0.8rem;color:var(--text-light);margin-bottom:6px;">참가자 ${tournamentPlayers.length}명 (부전승 ${byeCount}명)</p>
-    <div class="tournament-picked-list">
-      ${tournamentPlayers.map((p, i) => `
-        <span class="tournament-chip ${p.bye ? 'tournament-chip-bye' : ''}">
-          #${i + 1} ${esc(p.name)} <small>(${p.baseScore})</small>${p.bye ? ' 🔄' : ''}
-          <button class="chip-remove" onclick="removeTournamentPlayer(${i})">&times;</button>
-        </span>
-      `).join('')}
-    </div>
-  `;
-}
-
-function removeTournamentPlayer(index) {
-  tournamentPlayers.splice(index, 1);
-  renderTournamentPlayerList();
-  updateTournamentGenerateBtn();
-}
-
-function updateTournamentGenerateBtn() {
-  const btn = document.getElementById('btn-tournament-generate');
-  if (btn) btn.disabled = tournamentPlayers.length < 4;
-}
-
-function generateTournamentFromList() {
-  try {
-    const players = tournamentPlayers.map((p, i) => ({
-      seed: i + 1, name: p.name, baseScore: p.baseScore, bye: p.bye
-    }));
-    currentTournament = buildFlexibleBracket(players);
-    currentTournament.tournamentName = document.getElementById('tournament-name-input').value || '토너먼트';
-    currentTournament.tournamentDate = document.getElementById('tournament-date-input').value || todayStr();
-
-    document.getElementById('tournament-preview-card').style.display = '';
-    document.getElementById('tournament-preview-title').textContent = currentTournament.tournamentName + ' 대진표';
-    renderTournamentPreview();
-    toast(`${players.length}인 대진표 생성 완료`, 'success');
-  } catch (e) {
-    toast(e.message || '대진표 생성 실패', 'error');
-  }
-}
 
 function buildFlexibleBracket(players) {
   // players: [{seed, name, baseScore, bye}]
@@ -403,13 +318,6 @@ function buildFlexibleBracket(players) {
   };
 }
 
-function renderTournamentPreview() {
-  const summaryEl = document.getElementById('tournament-summary');
-  const bracketEl = document.getElementById('tournament-bracket');
-  if (!currentTournament || !summaryEl) return;
-  renderTournamentBracketInto(summaryEl, bracketEl, currentTournament);
-}
-
 function renderTournamentBracketInto(summaryEl, bracketEl, tournament) {
   const byeCount = (tournament.selected || []).filter(p => p.bye).length;
   summaryEl.innerHTML = `
@@ -463,34 +371,6 @@ function formatStaticPlayer(p) {
     return `<strong>[${p.seed}]</strong> ${esc(p.name)} <span class="player-base">기준 ${p.baseScore || 0}</span>${p.bye || p.fromBye ? ' <small style="color:var(--accent);">부전승</small>' : ''}`;
   }
   return esc(p.name);
-}
-
-async function saveTournamentToServer() {
-  if (!currentTournament) return;
-  try {
-    const id = (currentTournament.tournamentDate || todayStr()) + '_' + Date.now();
-    const tournamentData = {
-      id,
-      name: currentTournament.tournamentName || '토너먼트',
-      date: currentTournament.tournamentDate || todayStr(),
-      selected: currentTournament.selected,
-      rounds: currentTournament.rounds
-    };
-    savedTournaments = await API.saveTournament(tournamentData);
-    toast('토너먼트 저장 완료', 'success');
-
-    // 리셋
-    currentTournament = null;
-    tournamentPlayers = [];
-    renderTournamentPlayerList();
-    updateTournamentGenerateBtn();
-    document.getElementById('tournament-preview-card').style.display = 'none';
-    document.getElementById('tournament-name-input').value = '';
-    document.getElementById('tournament-date-input').value = todayStr();
-    renderTournamentHistory();
-  } catch (e) {
-    toast('저장 실패: ' + (e.message || ''), 'error');
-  }
 }
 
 function renderTournamentHistory() {
