@@ -349,17 +349,30 @@ function renderStaticMatchCard(m) {
       <div class="tournament-match final-three">
         <div class="match-id">${m.id}</div>
         ${m.players.map((p, i) => `
-          <div class="match-player">${i + 1}. ${formatStaticPlayer(p)}</div>
+          <div class="match-player">${i + 1}. ${formatStaticPlayer(p)}${p.score != null ? ` <span class="player-base">${p.score}점</span>` : ''}</div>
         `).join('')}
       </div>
     `;
   }
+  // 부전승 매치 (상대가 없음)
+  if (m.b && m.b.isBye) {
+    return `
+      <div class="tournament-match tournament-match-bye">
+        <div class="match-id">${m.id}</div>
+        <div class="match-player">${formatStaticPlayer(m.a)}</div>
+        <div class="match-vs" style="color:var(--accent);font-size:0.75rem;">부전승</div>
+      </div>
+    `;
+  }
+  const winnerMark = m.winner ? ` <span style="font-size:0.7rem;color:var(--success);">👑 ${esc(m.winner)}</span>` : '';
+  const scoreA = m.scoreA != null ? ` <span class="player-base">${m.scoreA}</span>` : '';
+  const scoreB = m.scoreB != null ? ` <span class="player-base">${m.scoreB}</span>` : '';
   return `
     <div class="tournament-match">
-      <div class="match-id">${m.id}</div>
-      <div class="match-player">${formatStaticPlayer(m.a)}</div>
+      <div class="match-id">${m.id}${winnerMark}</div>
+      <div class="match-player">${formatStaticPlayer(m.a)}${scoreA}</div>
       <div class="match-vs">VS</div>
-      <div class="match-player">${formatStaticPlayer(m.b)}</div>
+      <div class="match-player">${formatStaticPlayer(m.b)}${scoreB}</div>
     </div>
   `;
 }
