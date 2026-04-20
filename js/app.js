@@ -215,6 +215,10 @@ async function refreshTournament() {
 
   // 점수입력 탭 연동용
   renderTournament();
+
+  // 종합 점수표
+  await loadTournamentScores();
+  renderTournamentScoreTable();
 }
 
 
@@ -439,6 +443,163 @@ function buildTournamentBracket(players) {
   }));
   return buildFlexibleBracket(seeded);
 }
+
+// ===== 토너먼트 종합 점수표 =====
+let tournamentScoreData = {}; // { "2026": { "이름": { "1":0, "2":0, ... "12":0 } } }
+
+async function loadTournamentScores() {
+  try {
+    const settlements = await API.getSettlements();
+    Object.keys(settlements).forEach(k => {
+      if (k.startsWith('tournament-scores-')) {
+        const year = k.replace('tournament-scores-', '');
+        tournamentScoreData[year] = settlements[k];
+      }
+    });
+  } catch (e) { /* ignore */ }
+
+  const yearSel = document.getElementById('tournament-score-year');
+  if (!yearSel) return;
+  const curYear = String(new Date().getFullYear());
+  const years = Object.keys(tournamentScoreData);
+  if (!years.includes(curYear)) years.push(curYear);
+  years.sort();
+  yearSel.innerHTML = years.map(y => `<option value="${y}" ${y === curYear ? 'selected' : ''}>${y}</option>`).join('');
+}
+
+function getScoreYear() {
+  const el = document.getElementById('tournament-score-year');
+  return el ? el.value : String(new Date().getFullYear());
+}
+
+function renderTournamentScoreTable() {
+  const el = document.getElementById('tournament-score-table');
+  if (!el) return;
+  const year = getScoreYear();
+  const data = tournamentScoreData[year] || {};
+  const names = Object.keys(data);
+  const months = ['1','2','3','4','5','6','7','8','9','10','11','12'];
+  const isAdmin = appRole === 'admin';
+
+  // 합계 계산 및 정렬
+  const rows = names.map(name => {
+    const m = data[name];
+    let total = 0;
+    months.forEach(mo => { total += (m[mo] || 0); });
+    return { name, months: m, total };
+  });
+  rows.sort((a, b) => b.total - a.total);
+
+  if (rows.length === 0) {
+    el.innerHTML = '<p style="color:var(--text-light);font-size:0.85rem;">점수 데이터가 없습니다. "자동 계산"을 눌러주세요.</p>';
+    return;
+  }
+
+  el.innerHTML = `
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>#</th><th>이름</th>
+          ${months.map(mo => `<th>${mo}월</th>`).join('')}
+          <th><strong>합계</strong></th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows.map((r, i) => `
+          <tr>
+            <td>${i + 1}</td>
+            <td><strong>${esc(r.name)}</strong></td>
+            ${months.map(mo => {
+              const v = r.months[mo] || 0;
+              if (isAdmin) {
+                return `<td><input type="number" class="ts-input" value="${v}" min="0" max="99" style="width:36px;text-align:center;padding:2px;" data-name="${esc(r.name)}" data-month="${mo}" onchange="onTournamentScoreEdit(this)"></td>`;
+              }
+              return `<td>${v || ''}</td>`;
+            }).join('')}
+            <td><strong>${r.total}</strong></td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+window.renderTournamentScoreTable = renderTournamentScoreTable;
+
+function onTournamentScoreEdit(input) {
+  const year = getScoreYear();
+  if (!tournamentScoreData[year]) tournamentScoreData[year] = {};
+  const name = input.dataset.name;
+  const mo = input.dataset.month;
+  if (!tournamentScoreData[year][name]) tournamentScoreData[year][name] = {};
+  tournamentScoreData[year][name][mo] = parseInt(input.value) || 0;
+}
+window.onTournamentScoreEdit = onTournamentScoreEdit;
+
+function calcTournamentPointsFromTournament(t) {
+  const points = {};
+  if (!t || !t.rounds) return points;
+
+  t.rounds.forEach(round => {
+    round.matches.forEach(m => {
+      if (m.players) {
+        // 결승: 에버차이 순 정렬
+        const sorted = [...m.players].filter(p => p.score != null).sort((a, b) => (b.score - b.baseScore) - (a.score - a.baseScore));
+        if (sorted.length >= 1) { const n = sorted[0].name; points[n] = (points[n] || 0) + 2; }
+        if (sorted.length >= 2) { const n = sorted[1].name; points[n] = (points[n] || 0) + 1; }
+      } else if (m.winner && !(m.b && m.b.isBye)) {
+        // 부전승이 아닌 일반 매치 승자 +1
+        const n = m.winner;
+        points[n] = (points[n] || 0) + 1;
+      }
+    });
+  });
+  return points;
+}
+
+async function calcTournamentScoresFromData() {
+  const year = getScoreYear();
+  if (!tournamentScoreData[year]) tournamentScoreData[year] = {};
+  const data = tournamentScoreData[year];
+
+  // 해당 연도의 토너먼트들만 필터
+  const yearTournaments = savedTournaments.filter(t => t.date && t.date.startsWith(year));
+
+  yearTournaments.forEach(t => {
+    const month = String(parseInt(t.date.substring(5, 7), 10)); // "01" -> "1"
+    const points = calcTournamentPointsFromTournament(t);
+
+    Object.keys(points).forEach(name => {
+      if (!data[name]) data[name] = {};
+      data[name][month] = (data[name][month] || 0) + points[name];
+    });
+  });
+
+  // 토너먼트에 참가했지만 0점인 선수도 행에 추가
+  yearTournaments.forEach(t => {
+    (t.selected || []).forEach(p => {
+      if (!data[p.name]) data[p.name] = {};
+    });
+  });
+
+  tournamentScoreData[year] = data;
+  renderTournamentScoreTable();
+  toast('토너먼트 점수 자동 계산 완료', 'success');
+}
+window.calcTournamentScoresFromData = calcTournamentScoresFromData;
+
+async function saveTournamentScores() {
+  const year = getScoreYear();
+  const data = tournamentScoreData[year] || {};
+  try {
+    const settlements = await API.getSettlements();
+    settlements[`tournament-scores-${year}`] = data;
+    await API.saveSettlements(settlements);
+    toast('점수표 저장 완료', 'success');
+  } catch (e) {
+    toast('저장 실패: ' + (e.message || ''), 'error');
+  }
+}
+window.saveTournamentScores = saveTournamentScores;
 
 // renderTournament - 점수입력 탭 연동용 (scoring tab)
 function renderTournament() {

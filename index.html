@@ -225,6 +225,19 @@
           <button class="btn btn-small" id="btn-tournament-detail-close" style="background:var(--text-light);color:white;">닫기</button>
         </div>
       </div>
+
+      <div class="card">
+        <h2>종합 점수표</h2>
+        <div class="filter-row" style="margin-bottom:8px;">
+          <div class="form-group">
+            <label for="tournament-score-year">연도</label>
+            <select id="tournament-score-year" onchange="renderTournamentScoreTable()"></select>
+          </div>
+          <button class="btn btn-small" onclick="calcTournamentScoresFromData()" style="margin-left:auto;">자동 계산</button>
+          <button class="btn btn-small btn-primary" onclick="saveTournamentScores()">저장</button>
+        </div>
+        <div id="tournament-score-table" class="table-scroll"></div>
+      </div>
     </section>
 
     <!-- 기록 조회 -->
