@@ -354,10 +354,17 @@ function renderTournamentBracketInto(summaryEl, bracketEl, tournament) {
 
 function renderStaticMatchCard(m, isFinalRound) {
   if (m.players) {
+    const players = isFinalRound
+      ? [...m.players].sort((a, b) => {
+          const da = a.score != null && a.baseScore != null ? a.score - a.baseScore : -Infinity;
+          const db = b.score != null && b.baseScore != null ? b.score - b.baseScore : -Infinity;
+          return db - da;
+        })
+      : m.players;
     return `
       <div class="tournament-match final-three">
         <div class="match-id">${m.id || m.label || m.teamName || ''}</div>
-        ${m.players.map((p, i) => {
+        ${players.map((p, i) => {
           const hasScore = p.score != null && p.baseScore != null;
           let cls = '';
           let badge = '';
