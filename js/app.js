@@ -357,9 +357,11 @@ function renderStaticMatchCard(m) {
     return `
       <div class="tournament-match final-three">
         <div class="match-id">${m.id || m.label || m.teamName || ''}</div>
-        ${m.players.map((p, i) => `
-          <div class="match-player">${i + 1}. ${p.teamName ? '<strong>' + esc(p.teamName) + '</strong> · ' : ''}${formatStaticPlayer(p)}${p.score != null && p.baseScore != null ? ` <span class="player-base">${fmtDiff(p.score - p.baseScore)}</span>` : ''}</div>
-        `).join('')}
+        ${m.players.map((p, i) => {
+          const medal = i === 0 ? ' 🏆' : i === 1 ? ' 🥈' : '';
+          return `
+          <div class="match-player${i === 0 ? ' match-winner' : ''}">${i + 1}. ${p.teamName ? '<strong>' + esc(p.teamName) + '</strong> · ' : ''}${formatStaticPlayer(p)}${p.score != null && p.baseScore != null ? ` <span class="player-base">${fmtDiff(p.score - p.baseScore)}</span>` : ''}${medal}</div>
+        `}).join('')}
       </div>
     `;
   }
@@ -919,10 +921,10 @@ function renderTeamRepresentativeTournament(summaryEl, bracketEl, tournament, se
           <div class="match-id">팀 대표 순위</div>
           ${evalData.finals.length === 0 ? '<div class="match-player">미확정</div>' : evalData.finals.map((p, idx) => {
             const hasScore = p.score !== null;
-            const isWinner = idx === 0 && hasScore;
+            const medal = hasScore && idx === 0 ? '🏆' : hasScore && idx === 1 ? '🥈' : '';
             return `
-            <div class="match-player ${isWinner ? 'match-winner' : ''}">
-              ${idx + 1}. ${esc(p.teamName)} · ${esc(p.name)} <span class="player-base">기준 ${p.baseScore}</span> ${formatRepScore(p.score)} ${isWinner ? '🏆' : ''}
+            <div class="match-player ${hasScore && idx === 0 ? 'match-winner' : ''}">
+              ${idx + 1}. ${esc(p.teamName)} · ${esc(p.name)} <span class="player-base">기준 ${p.baseScore}</span> ${formatRepScore(p.score)} ${medal}
             </div>
           `}).join('')}
         </div>
