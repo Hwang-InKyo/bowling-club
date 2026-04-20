@@ -743,6 +743,7 @@ th.sortable:hover { background: rgba(232,101,45,0.08); }
   font-weight: 700;
   font-size: 0.9rem;
 }
+.se-names { color: var(--primary); font-weight: 600; }
 .btn-tiny {
   background: none;
   border: none;

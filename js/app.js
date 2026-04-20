@@ -3407,6 +3407,7 @@ function initSettlement() {
   document.getElementById('btn-add-expense').addEventListener('click', addExpenseRow);
   document.getElementById('settle-prev-balance').addEventListener('input', recalcSettleBalance);
   document.getElementById('btn-settle-download').addEventListener('click', downloadSettleImage);
+  document.getElementById('se-tip-amount').addEventListener('input', recalcSettleExpense);
 }
 
 async function refreshSettleDropdown() {
@@ -3531,10 +3532,16 @@ async function loadSettlement() {
   // 지출: 기타 항목
   const oexpBody = document.getElementById('settle-oexp-body');
   oexpBody.innerHTML = '';
-  if (saved && saved.otherExpenses && saved.otherExpenses.length) {
-    saved.otherExpenses.forEach(oe => addOtherExpenseRow(oe.label, oe.amount));
+
+  // 팁 전 지원 금액 복원
+  const tipEl = document.getElementById('se-tip-amount');
+  if (saved && saved.otherExpenses) {
+    const tipExp = saved.otherExpenses.find(oe => oe.label === '팁 전 지원');
+    tipEl.value = tipExp ? tipExp.amount : 0;
+    // 나머지 기타 항목 (올카바/에버상승/팁 제외)
+    saved.otherExpenses.filter(oe => oe.label !== '팁 전 지원' && oe.label !== '올카바 시상' && oe.label !== '에버 상승상').forEach(oe => addOtherExpenseRow(oe.label, oe.amount));
   } else {
-    DEFAULT_EXPENSE_ITEMS.forEach(label => addOtherExpenseRow(label, 0));
+    tipEl.value = 0;
   }
 
   // 수입: 추가 항목
@@ -3643,19 +3650,48 @@ function recalcSettleExpense() {
     gameTotal += parseInt(el.textContent.replace(/,/g, '')) || 0;
   });
 
+  // 올카바: 체크된 사람 이름, 금액
+  const olcabaNames = [];
+  let totalOlcaba = 0;
+  document.querySelectorAll('#settle-pbody tr').forEach(tr => {
+    const cb = tr.querySelector('.sp-olcaba');
+    if (cb && cb.checked) {
+      olcabaNames.push(cb.dataset.name);
+      totalOlcaba += parseInt(cb.dataset.amt) || 0;
+    }
+  });
+  document.getElementById('se-olcaba-names').textContent = olcabaNames.join(', ');
+  const olcabaUnit = olcabaNames.length > 0 ? parseInt(document.querySelector('.sp-olcaba')?.dataset.amt) || 3000 : 3000;
+  document.getElementById('se-olcaba-calc').textContent = olcabaNames.length > 0
+    ? `${olcabaUnit.toLocaleString()} x ${olcabaNames.length}명 = ${totalOlcaba.toLocaleString()}`
+    : '0';
+
+  // 에버상승: 체크된 사람 이름, 금액
+  const avgupNames = [];
+  let totalAvgUp = 0;
+  document.querySelectorAll('#settle-pbody tr').forEach(tr => {
+    const cb = tr.querySelector('.sp-avgup');
+    if (cb && cb.checked) {
+      avgupNames.push(cb.dataset.name);
+      totalAvgUp += parseInt(cb.dataset.amt) || 0;
+    }
+  });
+  document.getElementById('se-avgup-names').textContent = avgupNames.join(', ');
+  const avgupUnit = avgupNames.length > 0 ? parseInt(document.querySelector('.sp-avgup')?.dataset.amt) || 3000 : 3000;
+  document.getElementById('se-avgup-calc').textContent = avgupNames.length > 0
+    ? `${avgupUnit.toLocaleString()} x ${avgupNames.length}명 = ${totalAvgUp.toLocaleString()}`
+    : '0';
+
+  // 팁 전 지원
+  const tipAmount = parseInt(document.getElementById('se-tip-amount').value) || 0;
+
+  // 기타 지출 항목
   let otherTotal = 0;
   document.querySelectorAll('#settle-oexp-body .oe-amount').forEach(inp => {
     otherTotal += parseInt(inp.value) || 0;
   });
 
-  // 올카바 + 에버상승 (참가자 테이블의 지출 열)
-  let totalOlcaba = 0, totalAvgUp = 0;
-  document.querySelectorAll('#settle-pbody tr').forEach(tr => {
-    totalOlcaba += cbAmt(tr.querySelector('.sp-olcaba'));
-    totalAvgUp += cbAmt(tr.querySelector('.sp-avgup'));
-  });
-
-  const total = gameTotal + otherTotal + totalOlcaba + totalAvgUp;
+  const total = gameTotal + totalOlcaba + totalAvgUp + tipAmount + otherTotal;
   document.getElementById('se-total').textContent = total.toLocaleString();
 
   recalcSettleBalance();
@@ -3732,6 +3768,10 @@ async function saveSettlement() {
   });
 
   const otherExpenses = [];
+  // 팁 전 지원
+  const tipAmount = parseInt(document.getElementById('se-tip-amount').value) || 0;
+  otherExpenses.push({ label: '팁 전 지원', amount: tipAmount });
+  // 추가 기타 항목
   document.querySelectorAll('#settle-oexp-body tr').forEach(tr => {
     otherExpenses.push({
       label: tr.querySelector('.oe-label').value.trim(),

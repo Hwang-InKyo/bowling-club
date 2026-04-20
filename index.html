@@ -419,6 +419,20 @@
             </tbody>
           </table>
           <table class="settle-summary-table" id="settle-other-expense" style="margin-top:8px;">
+            <tbody>
+              <tr id="se-olcaba-row">
+                <td>올카바 시상<br><small class="se-names" id="se-olcaba-names"></small></td>
+                <td class="amt"><span id="se-olcaba-calc"></span></td>
+              </tr>
+              <tr id="se-avgup-row">
+                <td>에버 상승상<br><small class="se-names" id="se-avgup-names"></small></td>
+                <td class="amt"><span id="se-avgup-calc"></span></td>
+              </tr>
+              <tr>
+                <td>팁 전 지원</td>
+                <td class="amt"><input type="number" class="settle-input oe-amount" id="se-tip-amount" value="0" min="0" step="1000"></td>
+              </tr>
+            </tbody>
             <tbody id="settle-oexp-body"></tbody>
             <tfoot>
               <tr class="total-row"><td>합 계</td><td class="amt" id="se-total">0</td></tr>
