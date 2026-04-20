@@ -220,102 +220,99 @@ async function refreshTournament() {
 
 
 function buildFlexibleBracket(players) {
-  // players: [{seed, name, baseScore, bye}]
+  // players: [{seed, name, baseScore, bye}]  시드순 정렬 후 인접시드 매칭
   const n = players.length;
   if (n < 4) throw new Error('최소 4명 이상 필요합니다.');
+  players.sort((a, b) => a.seed - b.seed);
 
-  const byePlayers = players.filter(p => p.bye);
-  const normalPlayers = players.filter(p => !p.bye);
+  // R1 슬롯 생성: [4매치(8명)][최대2부전승][4매치(8명)][남은부전승]
+  const r1Slots = []; // {type:'match', a, b} | {type:'bye', player}
+  let pi = 0;
 
-  // 1차전: 일반 참가자끼리 매칭 (시드 순서대로 상위 vs 하위)
-  const r1matches = [];
-  const half = Math.floor(normalPlayers.length / 2);
-  const r1count = half; // pairs
-  for (let i = 0; i < r1count; i++) {
-    r1matches.push({
-      id: `R1-${i + 1}`,
-      a: normalPlayers[i],
-      b: normalPlayers[normalPlayers.length - 1 - i]
+  // 블록1: 최대 4매치
+  const b1m = Math.min(4, Math.floor(n / 2));
+  for (let i = 0; i < b1m; i++) {
+    r1Slots.push({ type: 'match', a: players[pi++], b: players[pi++] });
+  }
+  // 블록1 부전승: 남은 인원이 8명 초과일 때만
+  const after1 = n - pi;
+  if (after1 > 8) {
+    const bc = Math.min(2, after1 - 8);
+    for (let i = 0; i < bc; i++) {
+      players[pi].bye = true;
+      players[pi].byeRounds = [1];
+      r1Slots.push({ type: 'bye', player: players[pi++] });
+    }
+  }
+  // 블록2: 최대 4매치
+  const remain2 = n - pi;
+  const b2m = Math.min(4, Math.floor(remain2 / 2));
+  for (let i = 0; i < b2m; i++) {
+    r1Slots.push({ type: 'match', a: players[pi++], b: players[pi++] });
+  }
+  // 블록2 부전승: 나머지
+  while (pi < n) {
+    players[pi].bye = true;
+    players[pi].byeRounds = [1];
+    r1Slots.push({ type: 'bye', player: players[pi++] });
+  }
+
+  // 라운드 빌드: 슬롯 → 매치 배열
+  function slotsToMatches(slots, rn) {
+    return slots.map((s, i) => {
+      const id = `R${rn}-${i + 1}`;
+      if (s.type === 'match') return { id, a: s.a, b: s.b };
+      return { id, a: s.player, b: { isBye: true }, winner: s.player.name, note: `${rn}차전 부전승` };
     });
   }
-  // 홀수 일반 참가자 → 1차전 부전승으로 추가
-  let extraBye = null;
-  if (normalPlayers.length % 2 === 1) {
-    extraBye = normalPlayers[half]; // 중간 시드가 부전승
+
+  // 인접 슬롯 페어링 → 다음 라운드 슬롯
+  function pairSlots(slots, rn) {
+    const next = [];
+    for (let i = 0; i < slots.length; i += 2) {
+      const refA = slots[i].type === 'match'
+        ? { name: `승자 R${rn}-${i + 1}` }
+        : { ...slots[i].player, fromBye: true };
+      if (i + 1 < slots.length) {
+        const refB = slots[i + 1].type === 'match'
+          ? { name: `승자 R${rn}-${i + 2}` }
+          : { ...slots[i + 1].player, fromBye: true };
+        next.push({ type: 'match', a: refA, b: refB });
+      } else {
+        // 홀수 슬롯 → 다음 라운드 부전승
+        if (slots[i].type === 'bye' && slots[i].player.byeRounds) {
+          slots[i].player.byeRounds.push(rn + 1);
+        }
+        next.push({ type: 'bye', player: refA });
+      }
+    }
+    return next;
   }
 
-  const r1advanceCount = r1count + byePlayers.length + (extraBye ? 1 : 0);
+  // 라운드 반복 생성
+  const rounds = [];
+  let curSlots = r1Slots;
+  let rn = 1;
 
-  // 2차전 구성: 1차전 승자 + 부전승자
-  // 부전승자를 1차전 승자들과 매칭
-  const r2entries = [];
-  // 부전승자 먼저
-  byePlayers.forEach(p => r2entries.push({ seed: p.seed, name: p.name, baseScore: p.baseScore, fromBye: true }));
-  if (extraBye) r2entries.push({ seed: extraBye.seed, name: extraBye.name, baseScore: extraBye.baseScore, fromBye: true });
-  // 1차전 승자 참조
-  r1matches.forEach(m => r2entries.push({ seed: null, name: `승자 ${m.id}` }));
-
-  const r2matches = [];
-  const r2half = Math.floor(r2entries.length / 2);
-  for (let i = 0; i < r2half; i++) {
-    r2matches.push({
-      id: `R2-${i + 1}`,
-      a: r2entries[i],
-      b: r2entries[r2entries.length - 1 - i]
-    });
-  }
-  let r2extraBye = null;
-  if (r2entries.length % 2 === 1) {
-    r2extraBye = r2entries[r2half];
+  while (true) {
+    rounds.push({ title: `${rn}차전`, matches: slotsToMatches(curSlots, rn) });
+    const nextSlots = pairSlots(curSlots, rn);
+    if (nextSlots.length <= 3) {
+      // 다음이 마지막 매치 → 그 결과가 결승
+      rn++;
+      rounds.push({ title: `${rn}차전`, matches: slotsToMatches(nextSlots, rn) });
+      const finalEntries = nextSlots.map((s, i) => {
+        if (s.type === 'bye') return s.player;
+        return { name: `승자 R${rn}-${i + 1}` };
+      });
+      rounds.push({ title: `결승 (${finalEntries.length}명)`, matches: [{ id: 'FINAL', players: finalEntries }] });
+      break;
+    }
+    curSlots = nextSlots;
+    rn++;
   }
 
-  const r2advanceCount = r2half + (r2extraBye ? 1 : 0);
-
-  // 3차전
-  const r3entries = [];
-  if (r2extraBye) r3entries.push(r2extraBye.fromBye ? r2extraBye : { seed: null, name: r2extraBye.name.startsWith('승자') ? r2extraBye.name : `부전승 R2 ${r2extraBye.name}` });
-  r2matches.forEach(m => r3entries.push({ seed: null, name: `승자 ${m.id}` }));
-
-  // 3차전이 3명이면 결승으로
-  if (r3entries.length <= 3) {
-    return {
-      selected: players,
-      rounds: [
-        { title: `1차전 (${normalPlayers.length}명)`, matches: r1matches },
-        { title: `2차전 (${r2entries.length}명)`, matches: r2matches },
-        { title: `결승 (${r3entries.length}명)`, matches: [{ id: 'FINAL', players: r3entries }] }
-      ]
-    };
-  }
-
-  const r3matches = [];
-  const r3half = Math.floor(r3entries.length / 2);
-  for (let i = 0; i < r3half; i++) {
-    r3matches.push({
-      id: `R3-${i + 1}`,
-      a: r3entries[i],
-      b: r3entries[r3entries.length - 1 - i]
-    });
-  }
-  let r3extraBye = null;
-  if (r3entries.length % 2 === 1) {
-    r3extraBye = r3entries[r3half];
-  }
-
-  // 4차전 결승
-  const finalEntries = [];
-  if (r3extraBye) finalEntries.push({ seed: null, name: `부전승 R3` });
-  r3matches.forEach(m => finalEntries.push({ seed: null, name: `승자 ${m.id}` }));
-
-  return {
-    selected: players,
-    rounds: [
-      { title: `1차전 (${normalPlayers.length}명)`, matches: r1matches },
-      { title: `2차전 (${r2entries.length}명)`, matches: r2matches },
-      { title: `3차전 (${r3entries.length}명)`, matches: r3matches },
-      { title: `결승 (${finalEntries.length}명)`, matches: [{ id: 'FINAL', players: finalEntries }] }
-    ]
-  };
+  return { selected: players, rounds };
 }
 
 function renderTournamentBracketInto(summaryEl, bracketEl, tournament) {
