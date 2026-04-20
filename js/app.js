@@ -2216,8 +2216,7 @@ function drawCandleChart(points) {
   const paddingRight = 20;
   const paddingTop = 30;
   const paddingBottom = 50;
-  const pointSpacing = 80;
-  const chartWidth = Math.max(container.clientWidth, paddingLeft + paddingRight + points.length * pointSpacing);
+  const chartWidth = container.clientWidth;
   const chartHeight = 320;
 
   canvas.width = chartWidth * dpr;
