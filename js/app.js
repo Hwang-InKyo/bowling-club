@@ -356,7 +356,7 @@ function renderStaticMatchCard(m) {
   if (m.players) {
     return `
       <div class="tournament-match final-three">
-        <div class="match-id">${m.id}</div>
+        <div class="match-id">${m.id || m.label || m.teamName || ''}</div>
         ${m.players.map((p, i) => `
           <div class="match-player">${i + 1}. ${formatStaticPlayer(p)}${p.score != null && p.baseScore != null ? ` <span class="player-base">${fmtDiff(p.score - p.baseScore)}</span>` : ''}</div>
         `).join('')}
@@ -367,7 +367,7 @@ function renderStaticMatchCard(m) {
   if (m.b && m.b.isBye) {
     return `
       <div class="tournament-match tournament-match-bye">
-        <div class="match-id">${m.id}</div>
+        <div class="match-id">${m.id || m.label || m.teamName || ''}</div>
         <div class="match-player">${formatStaticPlayer(m.a)}</div>
         <div class="match-vs" style="color:var(--accent);font-size:0.75rem;">부전승</div>
       </div>
@@ -378,7 +378,7 @@ function renderStaticMatchCard(m) {
   const diffB = m.scoreB != null && m.b && m.b.baseScore != null ? fmtDiff(m.scoreB - m.b.baseScore) : '';
   return `
     <div class="tournament-match">
-      <div class="match-id">${m.id}${winnerMark}</div>
+      <div class="match-id">${m.id || m.label || m.teamName || ''}${winnerMark}</div>
       <div class="match-player">${formatStaticPlayer(m.a)}${diffA}</div>
       <div class="match-vs">VS</div>
       <div class="match-player">${formatStaticPlayer(m.b)}${diffB}</div>
