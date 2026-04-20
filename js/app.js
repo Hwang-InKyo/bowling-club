@@ -539,17 +539,27 @@ function calcTournamentPointsFromTournament(t) {
   const points = {};
   if (!t || !t.rounds) return points;
 
-  t.rounds.forEach(round => {
+  // 참석자 전원 +1 (참석 점수)
+  (t.selected || []).forEach(p => {
+    points[p.name] = (points[p.name] || 0) + 1;
+  });
+
+  const lastRoundIdx = t.rounds.length - 1;
+
+  t.rounds.forEach((round, ri) => {
     round.matches.forEach(m => {
       if (m.players) {
-        // 결승: 에버차이 순 정렬
+        // 결승(다인전): 우승자만 +1
         const sorted = [...m.players].filter(p => p.score != null).sort((a, b) => (b.score - b.baseScore) - (a.score - a.baseScore));
-        if (sorted.length >= 1) { const n = sorted[0].name; points[n] = (points[n] || 0) + 2; }
-        if (sorted.length >= 2) { const n = sorted[1].name; points[n] = (points[n] || 0) + 1; }
+        if (sorted.length >= 1) { const n = sorted[0].name; points[n] = (points[n] || 0) + 1; }
       } else if (m.winner && !(m.b && m.b.isBye)) {
         // 부전승이 아닌 일반 매치 승자 +1
         const n = m.winner;
         points[n] = (points[n] || 0) + 1;
+        // 결승 라운드 승자 = 우승자 +1 추가
+        if (ri === lastRoundIdx) {
+          points[n] = (points[n] || 0) + 1;
+        }
       }
     });
   });
@@ -558,8 +568,8 @@ function calcTournamentPointsFromTournament(t) {
 
 async function calcTournamentScoresFromData() {
   const year = getScoreYear();
-  if (!tournamentScoreData[year]) tournamentScoreData[year] = {};
-  const data = tournamentScoreData[year];
+  // 자동 계산 시 기존 데이터 초기화 후 재계산
+  const data = {};
 
   // 해당 연도의 토너먼트들만 필터
   const yearTournaments = savedTournaments.filter(t => t.date && t.date.startsWith(year));
@@ -571,13 +581,6 @@ async function calcTournamentScoresFromData() {
     Object.keys(points).forEach(name => {
       if (!data[name]) data[name] = {};
       data[name][month] = (data[name][month] || 0) + points[name];
-    });
-  });
-
-  // 토너먼트에 참가했지만 0점인 선수도 행에 추가
-  yearTournaments.forEach(t => {
-    (t.selected || []).forEach(p => {
-      if (!data[p.name]) data[p.name] = {};
     });
   });
 
