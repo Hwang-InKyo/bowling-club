@@ -344,7 +344,7 @@ function renderTournamentBracketInto(summaryEl, bracketEl, tournament) {
         <div class="tournament-round">
           <h3>${round.title || round.label || (roundIdx + 1) + 'R'}</h3>
           <div class="tournament-round-matches">
-          ${round.matches.map(m => renderStaticMatchCard(m)).join('')}
+          ${round.matches.map(m => renderStaticMatchCard(m, roundIdx === tournament.rounds.length - 1)).join('')}
           </div>
         </div>
       `).join('')}
@@ -352,15 +352,23 @@ function renderTournamentBracketInto(summaryEl, bracketEl, tournament) {
   `;
 }
 
-function renderStaticMatchCard(m) {
+function renderStaticMatchCard(m, isFinalRound) {
   if (m.players) {
     return `
       <div class="tournament-match final-three">
         <div class="match-id">${m.id || m.label || m.teamName || ''}</div>
         ${m.players.map((p, i) => {
-          const medal = i === 0 ? ' 🏆' : i === 1 ? ' 🥈' : '';
+          const hasScore = p.score != null && p.baseScore != null;
+          let cls = '';
+          let badge = '';
+          if (isFinalRound && hasScore) {
+            if (i === 0) { cls = ' match-winner'; badge = ' 🏆'; }
+            else if (i === 1) { badge = ' 🥈'; }
+          } else if (!isFinalRound && p.advanced) {
+            cls = ' match-winner';
+          }
           return `
-          <div class="match-player${i === 0 ? ' match-winner' : ''}">${i + 1}. ${p.teamName ? '<strong>' + esc(p.teamName) + '</strong> · ' : ''}${formatStaticPlayer(p)}${p.score != null && p.baseScore != null ? ` <span class="player-base">${fmtDiff(p.score - p.baseScore)}</span>` : ''}${medal}</div>
+          <div class="match-player${cls}">${i + 1}. ${p.teamName ? '<strong>' + esc(p.teamName) + '</strong> · ' : ''}${formatStaticPlayer(p)}${hasScore ? ` <span class="player-base">${fmtDiff(p.score - p.baseScore)}</span>` : ''}${badge}</div>
         `}).join('')}
       </div>
     `;
