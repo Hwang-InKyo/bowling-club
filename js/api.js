@@ -2,7 +2,7 @@
  * api.js - 데이터 저장/조회 (Google Apps Script + localStorage 캐시)
  */
 const API = (() => {
-  const API_URL = 'https://script.google.com/macros/s/AKfycbzknZR-z4o_vzI10HSvBvm_-azdksvCAukfC1Ega5MADsOFYhr45ovGSsNsMctEm5ow/exec';
+  const API_URL = 'https://script.google.com/macros/s/AKfycbygLHwDbX2-eftSt7rF77yLwXwlQtoUqjwYXHZdmSnXQcA3t-fGYi2aXtmqZLmPAxxT/exec';
 
   const CACHE_KEYS = {
     members: 'cache_members',

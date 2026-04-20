@@ -114,20 +114,22 @@ function updateMember(ss, name, updates) {
 
 // ===== 세션 =====
 function getSessions(ss) {
-  const sheet = getOrCreateSheet(ss, SHEET_SESSIONS, ['회차', '날짜', '게임수', '팀인원', '팀구성', '점수']);
+  const sheet = getOrCreateSheet(ss, SHEET_SESSIONS, ['회차', '날짜', '게임수', '팀인원', '팀구성', '점수', '점수유형']);
   const data = sheet.getDataRange().getValues();
   const sessions = [];
   for (let i = 1; i < data.length; i++) {
     if (data[i][0]) {
       try {
-        sessions.push({
+        const s = {
           round: Number(data[i][0]),
           date: fmtDate(data[i][1]),
           numGames: Number(data[i][2]),
           teamSize: Number(data[i][3]),
           teams: JSON.parse(data[i][4] || '[]'),
           scores: JSON.parse(data[i][5] || '[]')
-        });
+        };
+        if (data[i][6]) s.scoreType = String(data[i][6]).trim();
+        sessions.push(s);
       } catch (e) { /* skip bad rows */ }
     }
   }
@@ -136,7 +138,7 @@ function getSessions(ss) {
 }
 
 function saveSession(ss, session) {
-  const sheet = getOrCreateSheet(ss, SHEET_SESSIONS, ['회차', '날짜', '게임수', '팀인원', '팀구성', '점수']);
+  const sheet = getOrCreateSheet(ss, SHEET_SESSIONS, ['회차', '날짜', '게임수', '팀인원', '팀구성', '점수', '점수유형']);
   const data = sheet.getDataRange().getValues();
   const round = Number(session.round);
   const rowData = [
@@ -145,12 +147,13 @@ function saveSession(ss, session) {
     session.numGames,
     session.teamSize,
     JSON.stringify(session.teams),
-    JSON.stringify(session.scores)
+    JSON.stringify(session.scores),
+    session.scoreType || ''
   ];
 
   for (let i = 1; i < data.length; i++) {
     if (Number(data[i][0]) === round) {
-      sheet.getRange(i + 1, 1, 1, 6).setValues([rowData]);
+      sheet.getRange(i + 1, 1, 1, 7).setValues([rowData]);
       return getSessions(ss);
     }
   }
@@ -243,10 +246,10 @@ function importData(ss, data) {
     if (rows.length > 0) sheet.getRange(2, 1, rows.length, 3).setValues(rows);
   }
   if (data.sessions && data.sessions.length > 0) {
-    const sheet = getOrCreateSheet(ss, SHEET_SESSIONS, ['회차', '날짜', '게임수', '팀인원', '팀구성', '점수']);
+    const sheet = getOrCreateSheet(ss, SHEET_SESSIONS, ['회차', '날짜', '게임수', '팀인원', '팀구성', '점수', '점수유형']);
     if (sheet.getLastRow() > 1) sheet.deleteRows(2, sheet.getLastRow() - 1);
-    const rows = data.sessions.map(s => [s.round, s.date, s.numGames, s.teamSize, JSON.stringify(s.teams), JSON.stringify(s.scores)]);
-    if (rows.length > 0) sheet.getRange(2, 1, rows.length, 6).setValues(rows);
+    const rows = data.sessions.map(s => [s.round, s.date, s.numGames, s.teamSize, JSON.stringify(s.teams), JSON.stringify(s.scores), s.scoreType || '']);
+    if (rows.length > 0) sheet.getRange(2, 1, rows.length, 7).setValues(rows);
   }
   if (data.dues) {
     saveDues(ss, { dues: data.dues });
