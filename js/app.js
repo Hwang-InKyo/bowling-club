@@ -127,6 +127,7 @@ function applyRole() {
     if (settleTab) settleTab.style.display = 'none';
     if (settingsToggle) settingsToggle.style.display = 'none';
     document.querySelectorAll('.tournament-admin-only').forEach(el => el.style.display = 'none');
+    document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
   } else {
     if (sessionTab) sessionTab.style.display = '';
     if (scoringTab) scoringTab.style.display = '';
@@ -135,6 +136,7 @@ function applyRole() {
     if (settleTab) settleTab.style.display = '';
     if (settingsToggle) settingsToggle.style.display = '';
     document.querySelectorAll('.tournament-admin-only').forEach(el => el.style.display = '');
+    document.querySelectorAll('.admin-only').forEach(el => el.style.display = '');
   }
 }
 
@@ -1530,6 +1532,8 @@ function initScoringTab() {
     refreshScoringSessionList();
   });
   document.getElementById('btn-save-session').addEventListener('click', saveCurrentSession);
+  document.getElementById('btn-scoring-image').addEventListener('click', () => captureArea('scoring-capture-area', 'download'));
+  document.getElementById('btn-scoring-clipboard').addEventListener('click', () => captureArea('scoring-capture-area', 'clipboard'));
   refreshScoringSessionList(true);
 }
 
@@ -3406,7 +3410,8 @@ function initSettlement() {
   document.getElementById('btn-settle-save').addEventListener('click', saveSettlement);
   document.getElementById('btn-add-expense').addEventListener('click', addExpenseRow);
   document.getElementById('settle-prev-balance').addEventListener('input', recalcSettleBalance);
-  document.getElementById('btn-settle-download').addEventListener('click', downloadSettleImage);
+  document.getElementById('btn-settle-download').addEventListener('click', () => captureArea('settle-capture-area', 'download'));
+  document.getElementById('btn-settle-clipboard').addEventListener('click', () => captureArea('settle-capture-area', 'clipboard'));
   document.getElementById('se-tip-amount').addEventListener('input', recalcSettleExpense);
 }
 
@@ -3718,22 +3723,31 @@ function recalcSettleBalance() {
   finalEl.style.color = finalBalance < 0 ? '#d32f2f' : '#2e7d32';
 }
 
-async function downloadSettleImage() {
-  const area = document.getElementById('settle-capture-area');
-  if (!area || !area.querySelector('#settle-pbody tr')) {
-    alert('정산 데이터를 먼저 불러오세요.');
+async function captureArea(areaId, mode) {
+  const area = document.getElementById(areaId);
+  if (!area || area.children.length === 0) {
+    alert('데이터를 먼저 불러오세요.');
     return;
   }
   try {
     const canvas = await html2canvas(area, { backgroundColor: '#ffffff', scale: 2 });
-    const link = document.createElement('a');
-    const sel = document.getElementById('settle-session');
-    const label = sel.options[sel.selectedIndex]?.text || '정산';
-    link.download = `정산_${label.replace(/\s+/g, '_')}.png`;
-    link.href = canvas.toDataURL('image/png');
-    link.click();
+    if (mode === 'clipboard') {
+      canvas.toBlob(async (blob) => {
+        try {
+          await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+          toast('클립보드에 복사되었습니다', 'success');
+        } catch (e) {
+          alert('클립보드 복사 실패: ' + e.message);
+        }
+      }, 'image/png');
+    } else {
+      const link = document.createElement('a');
+      link.download = `${areaId.replace('-capture-area', '')}_${new Date().toISOString().slice(0,10)}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    }
   } catch (err) {
-    alert('이미지 저장 실패: ' + err.message);
+    alert('이미지 생성 실패: ' + err.message);
   }
 }
 

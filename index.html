@@ -180,6 +180,7 @@
 
       <!-- 점수 입력 폼 (세션 로드 후) -->
       <div id="scoring-input-form" style="display:none;">
+        <div id="scoring-capture-area">
         <div class="card">
           <h2 id="scoring-title">점수 입력</h2>
           <p class="scoring-sub" id="scoring-sub"></p>
@@ -191,9 +192,12 @@
           <h2>팀전 (오차 합계)</h2>
           <div id="team-score-tables"></div>
         </div>
-        <div style="display:flex;gap:8px;margin:12px 0;">
+        </div><!-- /scoring-capture-area -->
+        <div style="display:flex;gap:8px;margin:12px 0;flex-wrap:wrap;">
           <button class="btn btn-small" id="btn-scoring-back">← 모임 선택</button>
           <button class="btn btn-primary" id="btn-save-session">💾 저장</button>
+          <button class="btn btn-small admin-only" id="btn-scoring-image" style="display:none">📷 이미지 저장</button>
+          <button class="btn btn-small admin-only" id="btn-scoring-clipboard" style="display:none">📋 클립보드 복사</button>
         </div>
         <div class="card" id="scoring-tournament-card" style="display:none;">
           <h2>토너먼트 / 팀대표선발</h2>
@@ -361,6 +365,7 @@
           <button class="btn btn-small btn-primary" id="btn-settle-load">불러오기</button>
           <button class="btn btn-small" id="btn-settle-save">💾 저장</button>
           <button class="btn btn-small" id="btn-settle-download">📷 이미지 저장</button>
+          <button class="btn btn-small" id="btn-settle-clipboard">📋 클립보드 복사</button>
         </div>
       </div>
 
