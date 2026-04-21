@@ -266,13 +266,17 @@
             <select id="filter-member"><option value="">전체</option></select>
           </div>
           <button class="btn btn-small" id="btn-filter">조회</button>
+          <button class="btn btn-small admin-only" id="btn-records-image" style="display:none">📷 이미지 저장</button>
+          <button class="btn btn-small admin-only" id="btn-records-clipboard" style="display:none">📋 클립보드 복사</button>
         </div>
       </div>
-      <div id="records-session-detail"></div>
-      <div class="card" id="records-table-card" style="display:none;"><div id="records-table"></div></div>
-      <div class="card" id="personal-stats-card" style="display:none;">
-        <h2 id="personal-stats-title">개인 통계</h2>
-        <div id="personal-stats"></div>
+      <div id="records-capture-area">
+        <div id="records-session-detail"></div>
+        <div class="card" id="records-table-card" style="display:none;"><div id="records-table"></div></div>
+        <div class="card" id="personal-stats-card" style="display:none;">
+          <h2 id="personal-stats-title">개인 통계</h2>
+          <div id="personal-stats"></div>
+        </div>
       </div>
     </section>
 

@@ -429,6 +429,13 @@ th.sortable:hover { background: rgba(232,101,45,0.08); }
 .session-item:last-child { border-bottom: none; }
 .session-record-card { transition: transform 0.15s, box-shadow 0.15s; }
 .session-record-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+
+.records-mobile-list { display: grid; gap: 8px; }
+.records-mobile-card { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 10px; }
+.records-mobile-title { font-size: 0.9rem; color: var(--primary); margin-bottom: 6px; }
+.records-mobile-games { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.records-mobile-games span { font-size: 0.78rem; background: #fff; border: 1px solid var(--border); border-radius: 999px; padding: 2px 8px; }
+.records-mobile-meta { font-size: 0.8rem; color: var(--text); margin-top: 2px; }
 .session-info { flex: 1; }
 .session-round { font-weight: 700; color: var(--primary); font-size: 0.95rem; }
 .session-meta { font-size: 0.78rem; color: var(--text-light); }
