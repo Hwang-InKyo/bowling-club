@@ -2188,40 +2188,10 @@ function initFilters() {
   document.getElementById('btn-rank-filter').addEventListener('click', refreshRanking);
   document.getElementById('btn-records-image').addEventListener('click', () => captureArea('records-capture-area', 'download'));
   document.getElementById('btn-records-clipboard').addEventListener('click', () => captureArea('records-capture-area', 'clipboard'));
-  initRecordsReadabilityControls();
   document.getElementById('filter-type').addEventListener('change', function() {
     document.getElementById('filter-round').value = '';
     refreshRecords();
   });
-}
-
-function initRecordsReadabilityControls() {
-  const fontInput = document.getElementById('records-font-size');
-  const colInput = document.getElementById('records-col-gap');
-  const fontVal = document.getElementById('records-font-size-val');
-  const colVal = document.getElementById('records-col-gap-val');
-  const tab = document.getElementById('tab-records');
-  if (!fontInput || !colInput || !fontVal || !colVal || !tab) return;
-
-  const savedFont = localStorage.getItem('records.fontSize');
-  const savedCol = localStorage.getItem('records.colGap');
-  if (savedFont) fontInput.value = savedFont;
-  if (savedCol) colInput.value = savedCol;
-
-  const apply = () => {
-    const font = parseInt(fontInput.value, 10) || 13;
-    const col = parseInt(colInput.value, 10) || 6;
-    tab.style.setProperty('--records-font-size', `${font}px`);
-    tab.style.setProperty('--records-col-gap', `${col}px`);
-    fontVal.textContent = `${font}px`;
-    colVal.textContent = `${col}px`;
-    localStorage.setItem('records.fontSize', String(font));
-    localStorage.setItem('records.colGap', String(col));
-  };
-
-  fontInput.addEventListener('input', apply);
-  colInput.addEventListener('input', apply);
-  apply();
 }
 
 async function refreshRecords() {

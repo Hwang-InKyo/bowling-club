@@ -395,25 +395,25 @@ input[type="number"] {
 .data-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
 .data-table th, .data-table td { padding: 8px 6px; text-align: center; border-bottom: 1px solid var(--border); }
 .data-table th { background: var(--bg); font-weight: 700; color: var(--primary); font-size: 0.78rem; }
-#tab-records {
-  --records-font-size: 13px;
-  --records-col-gap: 6px;
-}
 #tab-records .data-table {
-  font-size: var(--records-font-size);
+  font-size: 11px;
 }
 #tab-records .data-table th,
 #tab-records .data-table td {
-  padding: 8px var(--records-col-gap);
+  padding: 8px 4px;
 }
 #tab-records .data-table th {
-  font-size: calc(var(--records-font-size) - 1px);
+  font-size: 10px;
 }
-.records-tune-group {
-  min-width: 128px;
+#tab-home .data-table {
+  font-size: 11px;
 }
-.records-tune-group input[type='range'] {
-  width: 120px;
+#tab-home .data-table th,
+#tab-home .data-table td {
+  padding: 8px 4px;
+}
+#tab-home .data-table th {
+  font-size: 10px;
 }
 th.sortable { cursor: pointer; user-select: none; position: relative; padding-right: 16px; }
 th.sortable::after { content: '⇅'; position: absolute; right: 2px; top: 50%; transform: translateY(-50%); font-size: 0.65rem; opacity: 0.35; }
