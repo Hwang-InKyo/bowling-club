@@ -1021,7 +1021,7 @@ async function refreshHome() {
     // 팀별 점수 테이블 (점수 입력창과 동일 형태)
     if (todaySession.teams && todaySession.teams.length > 0) {
       html += '<h3 style="font-size:0.9rem;color:var(--primary);margin:8px 0;">팀전 결과</h3>';
-      html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">';
+      html += '<div class="team-result-grid">';
       const numGames = todaySession.numGames;
 
       // 팀 순위 계산 후 정렬
@@ -3058,7 +3058,7 @@ function renderTeamSummaryReadonly(session, isTotalPin) {
 
   let html = '<div style="margin-top:12px;">';
   html += '<h3 style="font-size:0.9rem;color:var(--primary);margin-bottom:8px;">팀전 결과</h3>';
-  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">';
+  html += '<div class="team-result-grid">';
 
   teamsWithTotal.forEach(({ team: t }, rank) => {
     const teamPlayers = session.scores.filter(s => s.team === t.name);
