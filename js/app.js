@@ -2285,7 +2285,6 @@ async function refreshRecords() {
 }
 
 function renderSessionDetail(ses, scores, showTeam, allSessions) {
-  const isMobile = window.matchMedia('(max-width: 900px)').matches;
   // 정렬용 데이터 준비
   const rows = scores.map(s => {
     const total = sumGames(s.games, ses.numGames);
@@ -2295,27 +2294,6 @@ function renderSessionDetail(ses, scores, showTeam, allSessions) {
     const highGame = Math.max(...s.games.filter((g, i) => i < ses.numGames && g > 0), 0);
     return { name: s.name, games: s.games, total, highGame, avg, base, diffAvg };
   });
-
-  if (isMobile) {
-    let html = '<div class="card">';
-    html += '<h2>' + sessionLabel(ses, allSessions) + ' <span style="font-size:0.85rem;font-weight:400;color:var(--text-light)">' + formatDate(ses.date) + ' · ' + ses.scores.length + '명 · ' + ses.numGames + '게임</span></h2>';
-    html += '<h3 style="font-size:0.9rem;color:var(--primary);margin:12px 0 8px;">개인전</h3>';
-    html += '<div class="records-mobile-list">';
-    rows.forEach(r => {
-      html += '<div class="records-mobile-card">';
-      html += '<div class="records-mobile-title"><strong>' + esc(r.name) + '</strong></div>';
-      html += '<div class="records-mobile-games">';
-      for (let i = 0; i < ses.numGames; i++) html += '<span>' + (i + 1) + 'G ' + (r.games[i] || 0) + '</span>';
-      html += '</div>';
-      html += '<div class="records-mobile-meta">총핀 <strong>' + r.total + '</strong> · 단게임 <strong>' + r.highGame + '</strong> · 에버 <strong>' + r.avg + '</strong></div>';
-      html += '<div class="records-mobile-meta">기본 ' + (r.base || '-') + ' · 오차 ' + (r.diffAvg !== null ? diffSpan(r.diffAvg) : '-') + '</div>';
-      html += '</div>';
-    });
-    html += '</div>';
-    if (showTeam) html += renderTeamSummaryReadonly(ses);
-    html += '</div>';
-    return html;
-  }
 
   const tableId = 'session-detail-table';
   let html = '<div class="card">';
@@ -2389,33 +2367,12 @@ function renderSessionCard(ses, allSessions) {
 }
 
 function renderMemberRecordsTable(records) {
-  const isMobile = window.matchMedia('(max-width: 900px)').matches;
   const tableId = 'member-records-table';
   const rows = records.map(r => {
     const diffAvg = r.baseScore > 0 ? parseFloat((r.avg - r.baseScore).toFixed(1)) : null;
     const highGame = Math.max(...r.games.filter((g, i) => i < r.numGames && g > 0), 0);
     return { round: r.round, label: r.label, name: r.name, games: r.games, numGames: r.numGames, total: r.total, highGame, avg: r.avg, base: r.baseScore, diffAvg };
   });
-
-  if (isMobile) {
-    let html = '<div class="records-mobile-list">';
-    rows.forEach(r => {
-      html += '<div class="records-mobile-card">';
-      html += '<div class="records-mobile-title"><strong>' + esc(r.label || r.round + '회') + '</strong></div>';
-      html += '<div class="records-mobile-meta">이름 <strong>' + esc(r.name) + '</strong></div>';
-      html += '<div class="records-mobile-games">';
-      html += '<span>1G ' + (r.games[0] || '-') + '</span>';
-      html += '<span>2G ' + (r.games[1] || '-') + '</span>';
-      html += '<span>3G ' + (r.games[2] || '-') + '</span>';
-      html += '<span>4G ' + (r.numGames >= 4 ? (r.games[3] || '-') : '-') + '</span>';
-      html += '</div>';
-      html += '<div class="records-mobile-meta">총핀 <strong>' + r.total + '</strong> · 단게임 <strong>' + r.highGame + '</strong> · 에버 <strong>' + r.avg + '</strong></div>';
-      html += '<div class="records-mobile-meta">기본 ' + (r.base || '-') + ' · 오차 ' + (r.diffAvg !== null ? diffSpan(r.diffAvg) : '-') + '</div>';
-      html += '</div>';
-    });
-    html += '</div>';
-    return html;
-  }
 
   let html = '<div class="table-scroll"><table class="data-table sortable-table" id="' + tableId + '">';
   html += '<thead><tr>';
