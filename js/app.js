@@ -3350,7 +3350,7 @@ async function refreshDues() {
       const annualCb = row.querySelector('.dues-annual');
       const isAnnual = !!(annualCb && annualCb.checked);
       if (isAnnual) {
-        for (let m = 1; m <= 12; m++) monthSums[m] += MONTHLY_FEE;
+        // 연회비 대상자는 월별 합계에서 제외하고, 우측 총합계에만 반영
         totalSum += ANNUAL_FEE;
         return;
       }
