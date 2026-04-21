@@ -3253,7 +3253,8 @@ function hide(id) { document.getElementById(id).style.display = 'none'; }
 // ========================
 // 회비 관리
 // ========================
-const MONTHLY_FEE = 30000; // 월회비 기본금액
+const MONTHLY_FEE = 15000; // 월회비 고정금액
+const ANNUAL_FEE = 120000; // 연회비 고정금액
 
 function initDues() {
   // 년도 셀렉터
@@ -3286,22 +3287,28 @@ async function refreshDues() {
 
   // 바디: 회원별 행
   body.innerHTML = '';
+
+  const isMonthPaid = (md, month) => {
+    if (!md) return false;
+    if (md.months && md.months[month]) return true;
+    // 구버전 데이터 호환: month 값이 숫자/문자열로 존재하면 납부로 간주
+    return !!md[month];
+  };
+
   members.forEach(member => {
     const md = yearData[member.name] || {};
     const isAnnual = md.annual || false;
     let tr = `<tr><td class="dues-name">${esc(member.name)}</td>`;
     for (let m = 1; m <= 12; m++) {
-      const val = md[m] !== undefined ? md[m] : '';
+      const checked = isAnnual || isMonthPaid(md, m);
       const disabled = isAnnual ? 'disabled' : '';
-      tr += `<td><input type="number" class="dues-input" data-name="${esc(member.name)}" data-month="${m}" value="${val}" min="0" step="10000" ${disabled}></td>`;
+      tr += `<td style="text-align:center"><input type="checkbox" class="dues-input" data-name="${esc(member.name)}" data-month="${m}" ${checked ? 'checked' : ''} ${disabled}></td>`;
     }
     tr += `<td style="text-align:center"><input type="checkbox" class="dues-annual" data-name="${esc(member.name)}" ${isAnnual ? 'checked' : ''}></td>`;
     // 합계
-    let sum = 0;
-    if (isAnnual) {
-      sum = md.annualAmount || (MONTHLY_FEE * 12);
-    } else {
-      for (let m = 1; m <= 12; m++) sum += (md[m] || 0);
+    let sum = isAnnual ? ANNUAL_FEE : 0;
+    if (!isAnnual) {
+      for (let m = 1; m <= 12; m++) if (isMonthPaid(md, m)) sum += MONTHLY_FEE;
     }
     tr += `<td class="dues-sum" style="font-weight:bold;text-align:right">${sum > 0 ? sum.toLocaleString() : ''}</td>`;
     tr += '</tr>';
@@ -3311,50 +3318,59 @@ async function refreshDues() {
   // 연납 체크박스 이벤트
   body.querySelectorAll('.dues-annual').forEach(cb => {
     cb.addEventListener('change', function() {
-      const name = this.dataset.name;
       const row = this.closest('tr');
       const inputs = row.querySelectorAll('.dues-input');
       if (this.checked) {
         inputs.forEach(inp => {
-          inp.value = MONTHLY_FEE;
+          inp.checked = true;
           inp.disabled = true;
         });
       } else {
         inputs.forEach(inp => inp.disabled = false);
       }
       updateDuesRowSum(row);
+      updateDuesFooterSums();
     });
   });
 
   // 입력 변경 시 합계 업데이트
   body.querySelectorAll('.dues-input').forEach(inp => {
-    inp.addEventListener('input', function() {
+    inp.addEventListener('change', function() {
       updateDuesRowSum(this.closest('tr'));
+      updateDuesFooterSums();
     });
   });
 
-  // 푸터: 월별 합계
-  footer.innerHTML = '<td style="font-weight:bold">합계</td>';
-  for (let m = 1; m <= 12; m++) {
-    let colSum = 0;
-    members.forEach(member => {
-      const md = yearData[member.name] || {};
-      if (md.annual) colSum += MONTHLY_FEE;
-      else colSum += (md[m] || 0);
+  // 푸터: 월별 합계 + 우측 총합계
+  function updateDuesFooterSums() {
+    const monthSums = Array(13).fill(0);
+    let totalSum = 0;
+
+    body.querySelectorAll('tr').forEach(row => {
+      const annualCb = row.querySelector('.dues-annual');
+      const isAnnual = !!(annualCb && annualCb.checked);
+      if (isAnnual) {
+        for (let m = 1; m <= 12; m++) monthSums[m] += MONTHLY_FEE;
+        totalSum += ANNUAL_FEE;
+        return;
+      }
+      for (let m = 1; m <= 12; m++) {
+        const inp = row.querySelector(`.dues-input[data-month="${m}"]`);
+        if (inp && inp.checked) {
+          monthSums[m] += MONTHLY_FEE;
+          totalSum += MONTHLY_FEE;
+        }
+      }
     });
-    footer.innerHTML += `<td style="text-align:right;font-weight:bold">${colSum > 0 ? colSum.toLocaleString() : ''}</td>`;
-  }
-  // 연납 칸 비우기 + 총합계
-  let totalSum = 0;
-  members.forEach(member => {
-    const md = yearData[member.name] || {};
-    if (md.annual) {
-      totalSum += md.annualAmount || (MONTHLY_FEE * 12);
-    } else {
-      for (let m = 1; m <= 12; m++) totalSum += (md[m] || 0);
+
+    footer.innerHTML = '<td style="font-weight:bold">합계</td>';
+    for (let m = 1; m <= 12; m++) {
+      footer.innerHTML += `<td style="text-align:right;font-weight:bold">${monthSums[m] > 0 ? monthSums[m].toLocaleString() : ''}</td>`;
     }
-  });
-  footer.innerHTML += `<td></td><td style="font-weight:bold;text-align:right">${totalSum > 0 ? totalSum.toLocaleString() : ''}</td>`;
+    footer.innerHTML += `<td></td><td style="font-weight:bold;text-align:right">${totalSum > 0 ? totalSum.toLocaleString() : ''}</td>`;
+  }
+
+  updateDuesFooterSums();
 }
 
 function updateDuesRowSum(row) {
@@ -3362,11 +3378,8 @@ function updateDuesRowSum(row) {
   const annualCb = row.querySelector('.dues-annual');
   const sumCell = row.querySelector('.dues-sum');
   let sum = 0;
-  if (annualCb && annualCb.checked) {
-    sum = MONTHLY_FEE * 12;
-  } else {
-    inputs.forEach(inp => { sum += (parseInt(inp.value) || 0); });
-  }
+  if (annualCb && annualCb.checked) sum = ANNUAL_FEE;
+  else inputs.forEach(inp => { if (inp.checked) sum += MONTHLY_FEE; });
   sumCell.textContent = sum > 0 ? sum.toLocaleString() : '';
 }
 
@@ -3376,22 +3389,21 @@ async function saveDuesData() {
   const yearData = {};
 
   document.querySelectorAll('#dues-body tr').forEach(row => {
-    const name = row.querySelector('.dues-input').dataset.name;
+    const nameCell = row.querySelector('.dues-name');
+    if (!nameCell) return;
+    const name = nameCell.textContent.trim();
+    if (!name) return;
     const annualCb = row.querySelector('.dues-annual');
     const isAnnual = annualCb.checked;
-    const md = {};
-
-    if (isAnnual) {
-      md.annual = true;
-      md.annualAmount = MONTHLY_FEE * 12;
-      for (let m = 1; m <= 12; m++) md[m] = MONTHLY_FEE;
-    } else {
-      row.querySelectorAll('.dues-input').forEach(inp => {
-        const v = parseInt(inp.value) || 0;
-        if (v > 0) md[inp.dataset.month] = v;
-      });
+    const md = { months: {}, annual: isAnnual };
+    for (let m = 1; m <= 12; m++) {
+      const inp = row.querySelector(`.dues-input[data-month="${m}"]`);
+      if (inp && inp.checked) md.months[m] = true;
     }
-    if (Object.keys(md).length > 0) yearData[name] = md;
+    if (isAnnual) {
+      for (let m = 1; m <= 12; m++) md.months[m] = true;
+    }
+    if (Object.keys(md.months).length > 0 || md.annual) yearData[name] = md;
   });
 
   allDues[year] = yearData;
@@ -3819,13 +3831,14 @@ async function saveSettlement() {
   if (ses && ses.date) {
     const [y, m] = ses.date.split('-');
     const year = y;
-    const month = parseInt(m);
+    const month = parseInt(m, 10);
     const allDues = await API.getDues();
     if (!allDues[year]) allDues[year] = {};
     participants.forEach(p => {
-      if (!allDues[year][p.name]) allDues[year][p.name] = {};
+      if (!allDues[year][p.name]) allDues[year][p.name] = { months: {}, annual: false };
+      if (!allDues[year][p.name].months) allDues[year][p.name].months = {};
       if (p.monthly) {
-        allDues[year][p.name][month] = MONTHLY_FEE;
+        allDues[year][p.name].months[month] = true;
       }
     });
     await API.saveDues(allDues);
