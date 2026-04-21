@@ -395,6 +395,26 @@ input[type="number"] {
 .data-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
 .data-table th, .data-table td { padding: 8px 6px; text-align: center; border-bottom: 1px solid var(--border); }
 .data-table th { background: var(--bg); font-weight: 700; color: var(--primary); font-size: 0.78rem; }
+#tab-records {
+  --records-font-size: 13px;
+  --records-col-gap: 6px;
+}
+#tab-records .data-table {
+  font-size: var(--records-font-size);
+}
+#tab-records .data-table th,
+#tab-records .data-table td {
+  padding: 8px var(--records-col-gap);
+}
+#tab-records .data-table th {
+  font-size: calc(var(--records-font-size) - 1px);
+}
+.records-tune-group {
+  min-width: 128px;
+}
+.records-tune-group input[type='range'] {
+  width: 120px;
+}
 th.sortable { cursor: pointer; user-select: none; position: relative; padding-right: 16px; }
 th.sortable::after { content: '⇅'; position: absolute; right: 2px; top: 50%; transform: translateY(-50%); font-size: 0.65rem; opacity: 0.35; }
 th.sortable.sort-asc::after { content: '▲'; opacity: 0.8; color: var(--primary); }

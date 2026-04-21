@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>🎳 아르케 존 볼링 클럽</title>
-  <link rel="stylesheet" href="css/style.css?v=20260421a">
+  <link rel="stylesheet" href="css/style.css?v=20260421b">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎳</text></svg>">
 </head>
 <body>
@@ -264,6 +264,16 @@
           <div class="form-group">
             <label for="filter-member">회원</label>
             <select id="filter-member"><option value="">전체</option></select>
+          </div>
+          <div class="form-group records-tune-group">
+            <label for="records-font-size">표 글자</label>
+            <input type="range" id="records-font-size" min="11" max="16" step="1" value="13">
+            <small id="records-font-size-val">13px</small>
+          </div>
+          <div class="form-group records-tune-group">
+            <label for="records-col-gap">열 간격</label>
+            <input type="range" id="records-col-gap" min="4" max="14" step="1" value="6">
+            <small id="records-col-gap-val">6px</small>
           </div>
           <button class="btn btn-small" id="btn-filter">조회</button>
           <button class="btn btn-small admin-only" id="btn-records-image" style="display:none">📷 이미지 저장</button>
@@ -531,7 +541,7 @@
   </div><!-- /app-wrap -->
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-  <script src="js/api.js?v=20260421a"></script>
-  <script src="js/app.js?v=20260421a"></script>
+  <script src="js/api.js?v=20260421b"></script>
+  <script src="js/app.js?v=20260421b"></script>
 </body>
 </html>
