@@ -1352,6 +1352,8 @@ function initSession() {
     }
     updateParticipantSummary();
   });
+  document.getElementById('session-team-size').addEventListener('input', updateParticipantSummary);
+  document.getElementById('session-team-size').addEventListener('change', updateParticipantSummary);
 
   updateTournamentOptionState();
   initScoringTab();
@@ -1516,13 +1518,15 @@ function updateParticipantSummary() {
   const checked = document.querySelectorAll('#session-member-checks input:checked');
   const total = checked.length + guestPlayers.length;
   const el = document.getElementById('participant-summary');
-  const teamSize = parseInt(document.getElementById('session-team-size').value);
-  const numTeams = teamSize > 0 ? Math.ceil(total / teamSize) : 0;
+  const teamSize = parseInt(document.getElementById('session-team-size').value, 10);
+  const validTeamSize = Number.isInteger(teamSize) && teamSize > 0;
+  const numTeams = validTeamSize ? Math.ceil(total / teamSize) : 0;
   const tChecked = document.getElementById('session-tournament').checked;
   const repChecked = document.getElementById('session-team-rep').checked;
   const tText = tChecked ? ` · 토너먼트 ${total >= 20 && total <= 24 ? '가능' : '불가(20~24명)'}` : '';
-  const repText = repChecked ? ` · 팀대표선발 ${numTeams >= 2 ? '가능' : '불가(최소 2팀)'}` : '';
-  el.textContent = `참가자 ${total}명 (회원 ${checked.length} + 게스트 ${guestPlayers.length}) → ${numTeams}팀 예상${tText}${repText}`;
+  const repText = repChecked ? ` · 팀대표선발 ${validTeamSize && numTeams >= 2 ? '가능' : '불가(최소 2팀)'}` : '';
+  const teamInfo = validTeamSize ? `${numTeams}팀 예상` : '팀 인원을 1 이상으로 입력하세요';
+  el.textContent = `참가자 ${total}명 (회원 ${checked.length} + 게스트 ${guestPlayers.length}) → ${teamInfo}${tText}${repText}`;
 }
 
 function initScoringTab() {
@@ -1626,7 +1630,11 @@ async function loadSessionForScoring(round) {
 window.loadSessionForScoring = loadSessionForScoring;
 
 function stepMakeTeams() {
-  const teamSize = parseInt(document.getElementById('session-team-size').value);
+  const teamSize = parseInt(document.getElementById('session-team-size').value, 10);
+  if (!Number.isInteger(teamSize) || teamSize < 1) {
+    toast('팀 인원은 1 이상 정수로 입력하세요', 'error');
+    return;
+  }
   const numGames = parseInt(document.getElementById('session-games').value, 10);
   const tournamentEnabled = document.getElementById('session-tournament').checked && numGames === 4;
   const teamRepEnabled = document.getElementById('session-team-rep').checked && numGames === 3;
@@ -1725,7 +1733,11 @@ async function saveTeamSetup() {
   const date = document.getElementById('session-date').value;
   const numGames = parseInt(document.getElementById('session-games').value);
   const scoreType = document.getElementById('session-score-type').value;
-  const teamSize = parseInt(document.getElementById('session-team-size').value);
+  const teamSize = parseInt(document.getElementById('session-team-size').value, 10);
+  if (!Number.isInteger(teamSize) || teamSize < 1) {
+    toast('팀 인원은 1 이상 정수로 입력하세요', 'error');
+    return;
+  }
   const tournamentEnabled = document.getElementById('session-tournament').checked && numGames === 4;
   const teamRepEnabled = document.getElementById('session-team-rep').checked && numGames === 3;
 
