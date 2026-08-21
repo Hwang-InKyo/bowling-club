@@ -45,6 +45,7 @@ function initLockScreen() {
       initTabs();
       initSettings();
       initSession();
+      initDraw();
       initTournament();
       initMemberForm();
       initFilters();
@@ -117,6 +118,7 @@ function applyRole() {
   const membersTab = document.querySelector('[data-tab="members"]');
   const duesTab = document.querySelector('[data-tab="dues"]');
   const settleTab = document.querySelector('[data-tab="settlement"]');
+  const drawTab = document.querySelector('[data-tab="draw"]');
   const settingsToggle = document.getElementById('settings-toggle');
 
   if (appRole === 'viewer') {
@@ -125,6 +127,7 @@ function applyRole() {
     if (membersTab) membersTab.style.display = 'none';
     if (duesTab) duesTab.style.display = 'none';
     if (settleTab) settleTab.style.display = 'none';
+    if (drawTab) drawTab.style.display = 'none';
     if (settingsToggle) settingsToggle.style.display = 'none';
     document.querySelectorAll('.tournament-admin-only').forEach(el => el.style.display = 'none');
     document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
@@ -134,6 +137,7 @@ function applyRole() {
     if (membersTab) membersTab.style.display = '';
     if (duesTab) duesTab.style.display = '';
     if (settleTab) settleTab.style.display = '';
+    if (drawTab) drawTab.style.display = '';
     if (settingsToggle) settingsToggle.style.display = '';
     document.querySelectorAll('.tournament-admin-only').forEach(el => el.style.display = '');
     document.querySelectorAll('.admin-only').forEach(el => el.style.display = '');
@@ -159,6 +163,7 @@ async function refreshTab(tab) {
   switch (tab) {
     case 'home': await refreshHome(); break;
     case 'session': await refreshSessionTab(); break;
+    case 'draw': await refreshDrawTab(); break;
     case 'tournament': await refreshTournament(); break;
     case 'records': await refreshRecords(); break;
     case 'stats': await refreshStats(); break;
@@ -3030,6 +3035,218 @@ function initSettings() {
     reader.readAsText(file);
     importFile.value = '';
   });
+}
+
+// ========================
+// 랜덤 팀 뽑기 (모임과 무관 / 저장 안 함)
+// ========================
+let drawGuests = [];      // [{name, baseScore}] 임시 인원
+let drawTeams = [];       // [{name, members:[{name, baseScore}], totalBase}]
+let drawMembersLoaded = false;
+
+function initDraw() {
+  document.getElementById('btn-draw-sel-all').addEventListener('click', () => {
+    document.querySelectorAll('#draw-member-checks input[type="checkbox"]').forEach(cb => cb.checked = true);
+    updateDrawSummary();
+  });
+  document.getElementById('btn-draw-desel-all').addEventListener('click', () => {
+    document.querySelectorAll('#draw-member-checks input[type="checkbox"]').forEach(cb => cb.checked = false);
+    updateDrawSummary();
+  });
+  document.getElementById('draw-member-checks').addEventListener('change', updateDrawSummary);
+  document.getElementById('draw-team-size').addEventListener('input', updateDrawSummary);
+  document.getElementById('btn-draw-add-guest').addEventListener('click', addDrawGuest);
+  document.getElementById('draw-guest-name').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); addDrawGuest(); }
+  });
+  document.getElementById('btn-draw-teams').addEventListener('click', runDraw);
+  document.getElementById('btn-draw-again').addEventListener('click', runDraw);
+  document.getElementById('btn-draw-copy').addEventListener('click', copyDrawResult);
+}
+
+async function refreshDrawTab() {
+  if (drawMembersLoaded) { updateDrawSummary(); return; }
+  const members = await API.getMembers();
+  const curQKey = getCurrentQuarterKey();
+  const el = document.getElementById('draw-member-checks');
+  el.innerHTML = members.map(m => {
+    const base = getMemberBaseForQuarter(m, curQKey);
+    return `
+    <label class="checkbox-item">
+      <input type="checkbox" value="${esc(m.name)}" data-base="${base}">
+      <span>${esc(m.name)} <small>(${base})</small></span>
+    </label>
+  `}).join('');
+  drawMembersLoaded = true;
+  renderDrawGuestList();
+  updateDrawSummary();
+}
+
+function addDrawGuest() {
+  const nameEl = document.getElementById('draw-guest-name');
+  const baseEl = document.getElementById('draw-guest-base');
+  const name = nameEl.value.trim();
+  if (!name) { toast('이름을 입력하세요', 'error'); return; }
+  if (drawGuests.find(g => g.name === name)) { toast('이미 추가된 이름입니다', 'error'); return; }
+  drawGuests.push({ name, baseScore: parseInt(baseEl.value) || 0 });
+  nameEl.value = '';
+  baseEl.value = '';
+  nameEl.focus();
+  renderDrawGuestList();
+  updateDrawSummary();
+}
+
+function removeDrawGuest(name) {
+  drawGuests = drawGuests.filter(g => g.name !== name);
+  renderDrawGuestList();
+  updateDrawSummary();
+}
+window.removeDrawGuest = removeDrawGuest;
+
+function renderDrawGuestList() {
+  const el = document.getElementById('draw-guest-list');
+  if (drawGuests.length === 0) { el.innerHTML = ''; return; }
+  el.innerHTML = drawGuests.map(g => `
+    <span class="guest-tag">
+      🏷️ ${esc(g.name)} (${g.baseScore})
+      <button onclick="removeDrawGuest('${esc(g.name)}')" style="border:none;background:none;cursor:pointer;color:var(--danger);font-weight:700;">✕</button>
+    </span>
+  `).join('');
+}
+
+function getDrawPlayers() {
+  const checked = document.querySelectorAll('#draw-member-checks input:checked');
+  const selected = Array.from(checked).map(cb => ({
+    name: cb.value,
+    baseScore: parseInt(cb.dataset.base) || 0
+  }));
+  return [...selected, ...drawGuests.map(g => ({ name: g.name, baseScore: g.baseScore }))];
+}
+
+function updateDrawSummary() {
+  const total = getDrawPlayers().length;
+  const teamSize = parseInt(document.getElementById('draw-team-size').value, 10);
+  const el = document.getElementById('draw-summary');
+  if (total === 0) { el.textContent = '참가 인원을 선택하세요'; return; }
+  if (!Number.isInteger(teamSize) || teamSize < 1) { el.textContent = `참가 ${total}명`; return; }
+  const numTeams = Math.ceil(total / teamSize);
+  const per = Math.floor(total / numTeams);
+  const rest = total % numTeams;
+  const sizeText = rest === 0 ? `${per}명씩` : `${per + 1}명 × ${rest}팀 + ${per}명 × ${numTeams - rest}팀`;
+  el.textContent = `참가 ${total}명 → ${numTeams}팀 (${sizeText})`;
+}
+
+function shuffleArray(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// 완전 랜덤: 섞은 뒤 라운드로빈으로 균등 배분
+function drawRandomTeams(players, numTeams) {
+  const teams = Array.from({ length: numTeams }, (_, i) => ({ name: `${i + 1}팀`, members: [], totalBase: 0 }));
+  shuffleArray(players).forEach((p, idx) => {
+    teams[idx % numTeams].members.push(p);
+    teams[idx % numTeams].totalBase += p.baseScore || 0;
+  });
+  return teams;
+}
+
+// 에버 균형 + 랜덤: 에버순 티어(팀 수 단위) 내부를 섞고 스네이크 드래프트
+function drawBalancedTeams(players, numTeams) {
+  const sorted = [...players].sort((a, b) => (b.baseScore || 0) - (a.baseScore || 0));
+  const ordered = [];
+  for (let i = 0; i < sorted.length; i += numTeams) {
+    ordered.push(...shuffleArray(sorted.slice(i, i + numTeams)));
+  }
+  const teams = Array.from({ length: numTeams }, (_, i) => ({ name: `${i + 1}팀`, members: [], totalBase: 0 }));
+  ordered.forEach((p, idx) => {
+    const round = Math.floor(idx / numTeams);
+    const ti = round % 2 === 0 ? idx % numTeams : numTeams - 1 - (idx % numTeams);
+    teams[ti].members.push(p);
+    teams[ti].totalBase += p.baseScore || 0;
+  });
+  return teams;
+}
+
+function runDraw() {
+  const teamSize = parseInt(document.getElementById('draw-team-size').value, 10);
+  if (!Number.isInteger(teamSize) || teamSize < 1) {
+    toast('팀당 인원은 1 이상 정수로 입력하세요', 'error');
+    return;
+  }
+  const players = getDrawPlayers();
+  if (players.length < 2) {
+    toast('참가 인원을 2명 이상 선택하세요', 'error');
+    return;
+  }
+  if (players.length < teamSize) {
+    toast(`최소 ${teamSize}명 이상 필요 (현재 ${players.length}명)`, 'error');
+    return;
+  }
+
+  const numTeams = Math.ceil(players.length / teamSize);
+  const mode = document.getElementById('draw-mode').value;
+  drawTeams = mode === 'balanced'
+    ? drawBalancedTeams(players, numTeams)
+    : drawRandomTeams(players, numTeams);
+
+  renderDrawResult();
+  show('draw-result-card');
+  document.getElementById('draw-result-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  toast(`${numTeams}팀 뽑기 완료`, 'success');
+}
+
+function renderDrawResult() {
+  const el = document.getElementById('draw-result');
+  el.innerHTML = `<div class="team-grid">${drawTeams.map(t => `
+    <div class="team-card">
+      <div class="team-header">
+        <strong>${t.name}</strong>
+        <span class="team-avg">${t.members.length}명 · 에버합 ${t.totalBase}</span>
+      </div>
+      <ul class="team-members">
+        ${t.members.map(m => `<li>
+          <span>${esc(m.name)}</span>
+          <span class="base-tag">${m.baseScore}</span>
+        </li>`).join('')}
+      </ul>
+    </div>
+  `).join('')}</div>`;
+}
+
+function drawResultText() {
+  return drawTeams.map(t =>
+    `[${t.name}] (${t.members.length}명, 에버합 ${t.totalBase})\n` +
+    t.members.map(m => ` - ${m.name} (${m.baseScore})`).join('\n')
+  ).join('\n\n');
+}
+
+async function copyDrawResult() {
+  if (drawTeams.length === 0) { toast('먼저 팀을 뽑아주세요', 'error'); return; }
+  const text = drawResultText();
+  try {
+    await navigator.clipboard.writeText(text);
+    toast('결과를 복사했습니다', 'success');
+    return;
+  } catch (e) { /* fallback below */ }
+
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  try {
+    document.execCommand('copy');
+    toast('결과를 복사했습니다', 'success');
+  } catch (e2) {
+    toast('복사 실패', 'error');
+  }
+  document.body.removeChild(ta);
 }
 
 // ========================
